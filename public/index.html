@@ -121,9 +121,26 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
         var map = L.map('map', { center: [10.7769, 106.7009], zoom: 13, maxZoom: 22 });
-        var googleRoad = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', { maxZoom: 22, subdomains: ['mt0', 'mt1', 'mt2', 'mt3']}).addTo(map);
+        
+        // 1. Các lớp nền (Base Maps - Nút tròn)
+        var googleRoad = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', { maxZoom: 22, subdomains: ['mt0', 'mt1', 'mt2', 'mt3']});
         var googleSat = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', { maxZoom: 22, subdomains: ['mt0', 'mt1', 'mt2', 'mt3']});
-        var layerControl = L.control.layers({"Giao thông": googleRoad, "Vệ tinh": googleSat}, null, {position: 'topright'}).addTo(map);
+        var googleHybrid = L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { maxZoom: 22, subdomains: ['mt0', 'mt1', 'mt2', 'mt3']}).addTo(map); // Mặc định mở lớp Hỗn hợp
+        
+        // 2. Lớp phủ giao thông trong suốt (Overlay - Nút vuông)
+        var googleLabels = L.tileLayer('https://{s}.google.com/vt/lyrs=h&x={x}&y={y}&z={z}', { maxZoom: 22, subdomains: ['mt0', 'mt1', 'mt2', 'mt3']});
+
+        var baseMaps = {
+            "Giao thông (Sáng)": googleRoad,
+            "Vệ tinh (Trơn)": googleSat,
+            "Hỗn hợp (Vệ tinh + Đường)": googleHybrid
+        };
+
+        var overlayMaps = {
+            "Chỉ hiện tên đường & chữ": googleLabels
+        };
+
+        var layerControl = L.control.layers(baseMaps, overlayMaps, {position: 'topright'}).addTo(map);
         
         var currentGeoJsonLayer = null;
         var isEditMode = false;
