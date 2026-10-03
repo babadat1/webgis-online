@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trang Báo Cáo Thống Kê Đất Đai</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f7fa; color: #333; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 25px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        h1 { margin-top: 0; color: #2c3e50; font-size: 24px; border-bottom: 2px solid #3498db; padding-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+        .back-link { font-size: 14px; background: #3498db; color: white; padding: 8px 15px; border-radius: 4px; text-decoration: none; }
+        .back-link:hover { background: #2980b9; }
+
+        .control-panel { background: #f8f9fa; padding: 15px 20px; border-radius: 6px; border: 1px solid #e1e8ed; margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 15px; align-items: center; }
+        .control-group { display: flex; flex-direction: column; min-width: 220px; flex-grow: 1; }
+        .control-group label { font-weight: bold; margin-bottom: 5px; font-size: 13px; color: #555; }
+        .control-group select, .control-group input { padding: 8px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
+
+        .btn { background: #2ecc71; color: white; border: none; padding: 9px 18px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 14px; transition: 0.2s; }
+        .btn:hover { background: #27ae60; }
+        .btn-print { background: #e67e22; }
+        .btn-print:hover { background: #d35400; }
+
+        .summary-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; margin-bottom: 25px; }
+        .card { background: white; padding: 15px 20px; border-radius: 6px; border-left: 5px solid #3498db; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .card.green { border-left-color: #2ecc71; }
+        .card.purple { border-left-color: #9b59b6; }
+        .card.orange { border-left-color: #e67e22; }
+        .card-title { font-size: 12px; color: #7f8c8d; text-transform: uppercase; font-weight: bold; }
+        .card-value { font-size: 22px; font-weight: bold; color: #2c3e50; margin-top: 5px; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
+        th, td { border: 1px solid #ddd; padding: 10px 12px; text-align: left; }
+        th { background-color: #2c3e50; color: white; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+        tr:hover { background-color: #f1f4f8; }
+
+        .progress-bar-container { background: #e0e0e0; border-radius: 4px; height: 12px; width: 100%; overflow: hidden; margin-top: 4px; }
+        .progress-bar { background: #3498db; height: 100%; border-radius: 4px; }
+
+        .no-data { text-align: center; padding: 40px; color: #7f8c8d; font-size: 16px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>
+            <span>📋 Báo Cáo Thống Kê & Phân Tích Đất Đai</span>
+            <a href="index.html" class="back-link">← Quay lại Bản đồ GIS</a>
+        </h1>
+
+        <!-- Thanh điều khiển chọn cột thống kê và nguồn dữ liệu -->
+        <div class="control-panel">
+            <div class="control-group">
+                <label for="groupColumnSelect">Chọn cột để thống kê (Nhóm phân loại):</label>
+                <select id="groupColumnSelect">
+                    <option value="">-- Đang tải danh sách cột... --</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <label for="areaColumnSelect">Chọn cột tính diện tích (Tùy chọn):</label>
+                <select id="areaColumnSelect">
+                    <option value="">-- Không chọn (Đếm số lượng thửa) --</option>
+                </select>
+            </div>
+
+            <div class="control-group" style="justify-content: flex-end; flex-grow: 0; min-width: auto; padding-top: 20px;">
+                <button class="btn" onclick="generateReport()">Tạo Báo Cáo</button>
+                <button class="btn btn-print" onclick="window.print()" style="margin-left: 8px;">In / Xuất PDF</button>
+            </div>
+        </div>
+
+        <!-- Thẻ thống kê tổng quan -->
+        <div class="summary-cards">
+            <div class="card">
+                <div class="card-title">Tổng số thửa đất</div>
+                <div class="card-value" id="totalFeatures">0</div>
+            </div>
+            <div class="card green">
+                <div class="card-title">Tổng diện tích thống kê</div>
+                <div class="card-value" id="totalArea">0.00 m²</div>
+            </div>
+            <div class="card purple">
+                <div class="card-title">Số nhóm phân loại</div>
+                <div class="card-value" id="totalGroups">0</div>
+            </div>
+            <div class="card orange">
+                <div class="card-title">Trạng thái dữ liệu</div>
+                <div class="card-value" id="dataSourceStatus" style="font-size: 16px; color: #27ae60; margin-top: 8px;">Đã sẵn sàng</div>
+            </div>
+        </div>
+
+        <!-- Bảng kết quả thống kê -->
+        <div id="reportResultContainer">
+            <div class="no-data">Chưa có dữ liệu hoặc chưa chọn cột thống kê. Vui lòng chọn cột và bấm "Tạo Báo Cáo".</div>
+        </div>
+    </div>
+
+    <script>
+        let geojsonData = null;
+
+        // Tải dữ liệu từ localStorage cache khi vào trang báo cáo
+        window.onload = function() {
+            let cached = localStorage.getItem('webgis_cache_data');
+            if (cached) {
+                try {
+                    geojsonData = JSON.parse(cached);
+                    initReportPage(geojsonData);
+                } catch(e) {
+                    console.error("Lỗi đọc cache:", e);
+                }
+            }
+
+            // Nếu không có trong cache, thử gọi API server
+            if (!geojsonData) {
+                fetch('/api/get-features')
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data && data.features && data.features.length > 0) {
+                            geojsonData = data;
+                            initReportPage(geojsonData);
+                        } else {
+                            document.getElementById('dataSourceStatus').innerText = "Chưa có dữ liệu";
+                            document.getElementById('dataSourceStatus').style.color = "#e74c3c";
+                        }
+                    })
+                    .catch(err => {
+                        console.error("Lỗi lấy dữ liệu từ server:", err);
+                        document.getElementById('dataSourceStatus').innerText = "Lỗi kết nối CSDL";
+                        document.getElementById('dataSourceStatus').style.color = "#e74c3c";
+                    });
+            }
+        };
+
+        function initReportPage(data) {
+            if (!data || !data.features || data.features.length === 0) return;
+
+            document.getElementById('totalFeatures').innerText = data.features.length;
+            document.getElementById('dataSourceStatus').innerText = "Đã nạp " + data.features.length + " thửa";
+
+            // Lấy tất cả các thuộc tính (keys) từ feature đầu tiên để làm danh sách chọn cột
+            let firstProps = data.features[0].properties || {};
+            let keys = Object.keys(firstProps);
+
+            let groupSelect = document.getElementById('groupColumnSelect');
+            let areaSelect = document.getElementById('areaColumnSelect');
+            
+            groupSelect.innerHTML = '';
+            areaSelect.innerHTML = '<option value="">-- Không có (Đếm số lượng thửa) --</option>';
+
+            keys.forEach(key => {
+                let opt1 = document.createElement('option');
+                opt1.value = key;
+                opt1.innerText = key;
+                groupSelect.appendChild(opt1);
+
+                let opt2 = document.createElement('option');
+                opt2.value = key;
+                opt2.innerText = key;
+                areaSelect.appendChild(opt2);
+            });
+
+            // Tự động chọn cột gợi ý nếu có (ví dụ: 'loaidat', 'mucdich', 'dientich', 'area')
+            keys.forEach(key => {
+                let lower = key.toLowerCase();
+                if (lower.includes('loai') || lower.includes('mucdich') || lower.includes('dd') || lower.includes('ten')) {
+                    groupSelect.value = key;
+                }
+                if (lower.includes('dien') || lower.includes('area') || lower.includes('dt') || lower.includes('s_')) {
+                    areaSelect.value = key;
+                }
+            });
+
+            // Tự động chạy báo cáo lần đầu
+            generateReport();
+        }
+
+        function generateReport() {
+            if (!geojsonData || !geojsonData.features) {
+                alert("Không có dữ liệu để thống kê!");
+                return;
+            }
+
+            let groupKey = document.getElementById('groupColumnSelect').value;
+            let areaKey = document.getElementById('areaColumnSelect').value;
+
+            if (!groupKey) {
+                alert("Vui lòng chọn cột thống kê nhóm!");
+                return;
+            }
+
+            let stats = {};
+            let totalCount = geojsonData.features.length;
+            let grandTotalArea = 0;
+            let hasArea = areaKey !== "";
+
+            geojsonData.features.forEach(feat => {
+                let props = feat.properties || {};
+                let groupVal = props[groupKey] !== null && props[groupKey] !== undefined ? String(props[groupKey]).trim() : "(Chưa xác định)";
+                
+                if (!stats[groupVal]) {
+                    stats[groupVal] = { count: 0, area: 0 };
+                }
+
+                stats[groupVal].count += 1;
+
+                if (hasArea) {
+                    let rawArea = parseFloat(props[areaKey]);
+                    if (!isNaN(rawArea)) {
+                        stats[groupVal].area += rawArea;
+                        grandTotalArea += rawArea;
+                    }
+                }
+            });
+
+            let groupKeys = Object.keys(stats);
+            document.getElementById('totalGroups').innerText = groupKeys.length;
+            document.getElementById('totalArea').innerText = grandTotalArea.toLocaleString('vi-VN', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + (hasArea ? " m²" : " (N/A)");
+
+            // Sắp xếp theo số lượng giảm dần
+            groupKeys.sort((a, b) => stats[b].count - stats[a].count);
+
+            // Dựng bảng HTML báo cáo
+            let html = `
+                <h3 style="margin-bottom: 10px; color: #2c3e50;">Kết quả thống kê theo cột: <span style="color: #3498db;">${groupKey}</span> ${hasArea ? 'kết hợp tính diện tích theo cột: <span style="color: #27ae60;">' + areaKey + '</span>' : ''}</h3>
+                <table class="report-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 50px; text-align: center;">STT</th>
+                            <th>Nhóm phân loại (${groupKey})</th>
+                            <th style="text-align: right; width: 120px;">Số lượng thửa</th>
+                            <th style="text-align: right; width: 130px;">Tỷ lệ số lượng (%)</th>
+                            ${hasArea ? '<th style="text-align: right; width: 150px;">Tổng diện tích (m²)</th><th style="text-align: right; width: 130px;">Tỷ lệ diện tích (%)</th>' : ''}
+                            <th style="width: 250px;">Biểu đồ phân bổ</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            let stt = 1;
+            groupKeys.forEach(val => {
+                let item = stats[val];
+                let countPct = ((item.count / totalCount) * 100).toFixed(2);
+                let areaPct = hasArea && grandTotalArea > 0 ? ((item.area / grandTotalArea) * 100).toFixed(2) : 0;
+
+                html += `
+                    <tr>
+                        <td style="text-align: center;">${stt++}</td>
+                        <td><b>${escapeHtml(val)}</b></td>
+                        <td style="text-align: right;">${item.count.toLocaleString()}</td>
+                        <td style="text-align: right;">${countPct}%</td>
+                        ${hasArea ? '<td style="text-align: right;">' + item.area.toLocaleString('vi-VN', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '</td><td style="text-align: right;">' + areaPct + '%</td>' : ''}
+                        <td>
+                            <div class="progress-bar-container">
+                                <div class="progress-bar" style="width: ${countPct}%;"></div>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            // Dòng tổng cộng
+            html += `
+                        <tr style="background-color: #eaeded; font-weight: bold;">
+                            <td colspan="2" style="text-align: right;">TỔNG CỘNG:</td>
+                            <td style="text-align: right;">${totalCount.toLocaleString()}</td>
+                            <td style="text-align: right;">100.00%</td>
+                            ${hasArea ? '<td style="text-align: right;">' + grandTotalArea.toLocaleString('vi-VN', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '</td><td style="text-align: right;">100.00%</td>' : ''}
+                            <td></td>
+                        </tr>
+                    </tbody>
+                </table>
+            `;
+
+            document.getElementById('reportResultContainer').innerHTML = html;
+        }
+
+        function escapeHtml(text) {
+            if (text === null || text === undefined) return '';
+            return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+    </script>
+</body>
+</html>
