@@ -14,9 +14,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 // CẤU HÌNH KẾT NỐI DATABASE POSTGRESQL ONLINE
 // ==========================================
 const pool = new Pool({
-    connectionString: postgresql://neondb_owner:npg_gMTNKqx9r2Gu@ep-delicate-meadow-b373h7eq-pooler.c-4.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require,
+    connectionString: 'postgresql://neondb_owner:npg_gMTNKqx9r2Gu@ep-delicate-meadow-b373h7eq-pooler.c-4.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require',
     ssl: {
-        rejectUnauthorized: false // Bắt buộc phải có dòng này khi dùng Neon Database
+        rejectUnauthorized: false
     }
 });
 
