@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebGIS - Lưu Database Online</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body, html { margin: 0; padding: 0; height: 100%; width: 100%; font-family: Arial, sans-serif; }
+        #map { height: 100%; width: 100%; }
+        
+        .file-control {
+            position: absolute; top: 10px; left: 60px; background: white;
+            padding: 10px 15px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            z-index: 1000; font-size: 14px; width: 220px;
+        }
+        .file-control input { margin-top: 5px; width: 100%; }
+
+        .sidebar {
+            position: absolute; top: 155px; left: 10px; width: 320px; bottom: 20px;
+            background: white; border-radius: 5px; box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+            z-index: 1000; display: none; flex-direction: column;
+        }
+        .sidebar.active { display: flex; }
+        .sidebar-header { padding: 12px 15px; font-weight: bold; font-size: 15px; border-bottom: 1px solid #ddd; background-color: #f8f9fa; border-top-left-radius: 5px; border-top-right-radius: 5px; color: #333; }
+        .sidebar-content { padding: 15px; flex-grow: 1; overflow-y: auto; }
+        .sidebar-footer { padding: 12px 15px; border-top: 1px solid #ddd; text-align: right; background-color: #f8f9fa; border-bottom-left-radius: 5px; border-bottom-right-radius: 5px; }
+
+        .popup-content { font-size: 13px; max-height: 250px; overflow-y: auto; padding-right: 5px; min-width: 180px; }
+        .popup-btn-container { margin-top: 8px; text-align: right; }
+        .btn-custom { color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; margin-left: 4px; transition: 0.2s; }
+        .btn-edit { background-color: #3498db; } .btn-edit:hover { background-color: #2980b9; }
+        .btn-save { background-color: #2ecc71; } .btn-save:hover { background-color: #27ae60; }
+        .btn-cancel { background-color: #e74c3c; } .btn-cancel:hover { background-color: #c0392b; }
+        .btn-db { background-color: #f39c12; width: 100%; margin-bottom: 10px; font-weight: bold; padding: 8px; font-size: 13px;} .btn-db:hover { background-color: #e67e22; }
+        
+        .edit-input { width: 100%; box-sizing: border-box; padding: 6px 8px; margin-bottom: 8px; font-size: 13px; border: 1px solid #ccc; border-radius: 3px; }
+        .edit-label { font-size: 12px; color: #555; display: block; margin-bottom: 3px; font-weight: bold; }
+        
+        #saving-status { display: none; color: #27ae60; font-weight: bold; font-size: 12px; margin-top: 5px; }
+    </style>
+</head>
+<body>
+
+    <!-- Box Menu Điều Khiển -->
+    <div class="file-control">
+        <button id="loadDbBtn" class="btn-custom btn-db">Tải Dữ Liệu Từ Database</button>
+        <hr style="margin: 10px 0; border: 0; border-top: 1px solid #ddd;">
+        
+        <label for="geojsonFile"><b>Hoặc nhập file mới:</b></label>
+        <input type="file" id="geojsonFile" accept=".geojson, .json" />
+        <hr style="margin: 10px 0; border: 0; border-top: 1px solid #ddd;">
+        
+        <button id="exportBtn" class="btn-custom btn-save" style="width: 100%; margin: 0; padding: 8px; font-weight: bold; font-size: 14px;">Xuất File (.geojson)</button>
+        <div id="saving-status">✓ Đã đồng bộ Database</div>
+    </div>
+
+    <!-- Khung Sidebar chỉnh sửa -->
+    <div id="edit-sidebar" class="sidebar">
+        <div class="sidebar-header">Chỉnh sửa thuộc tính</div>
+        <div id="sidebar-form" class="sidebar-content"></div>
+        <div id="sidebar-footer" class="sidebar-footer"></div>
+    </div>
+
+    <!-- Khung chứa bản đồ -->
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        var googleRoad = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', { maxZoom: 22, subdomains: ['mt0', 'mt1', 'mt2', 'mt3']});
+        var googleSat = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', { maxZoom: 22, subdomains: ['mt0', 'mt1', 'mt2', 'mt3']});
+        var googleHybrid = L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { maxZoom: 22, subdomains: ['mt0', 'mt1', 'mt2', 'mt3']});
+
+        var map = L.map('map', { center: [10.7769, 106.7009], zoom: 13, maxZoom: 22, layers: [googleRoad] });
+        var layerControl = L.control.layers({"Giao thông": googleRoad, "Vệ tinh": googleSat, "Hỗn hợp": googleHybrid}, null, {position: 'topright'}).addTo(map);
+        var currentGeoJsonLayer = null;
+
+        var isEditMode = false;
+        var currentEditing = null; 
+
+        function escapeHtml(text) {
+            if (text === null || text === undefined) return '';
+            return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+
+        function closeSidebar() {
+            document.getElementById('edit-sidebar').classList.remove('active');
+            isEditMode = false;
+            currentEditing = null;
+        }
+
+        function showSaveStatus() {
+            var status = document.getElementById('saving-status');
+            status.style.display = 'block';
+            setTimeout(() => { status.style.display = 'none'; }, 2000);
+        }
+
+        // =========================================================================
+        // HÀM LƯU DỮ LIỆU ĐANG SỬA (Cập nhật Local và gửi lên Database Online)
+        // =========================================================================
+        function saveCurrentEdit() {
+            if (currentEditing) {
+                // 1. Cập nhật Properties cục bộ
+                for (var key in currentEditing.inputs) {
+                    currentEditing.feature.properties[key] = currentEditing.inputs[key].value;
+                }
+
+                // 2. GỬI DỮ LIỆU LÊN DATABASE
+                fetch('/api/save-feature', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id: currentEditing.feature.id,
+                        properties: currentEditing.feature.properties,
+                        geometry: currentEditing.feature.geometry
+                    })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    console.log("DB Update:", data.message);
+                    showSaveStatus();
+                })
+                .catch(err => {
+                    console.error("Lỗi Database:", err);
+                });
+
+                // 3. Cập nhật giao diện
+                currentGeoJsonLayer.resetStyle(currentEditing.layer);
+                currentEditing.layer.bindPopup(createPopupContent(currentEditing.feature, currentEditing.layer));
+            }
+        }
+
+        function openSidebar(feature, layer) {
+            var sidebar = document.getElementById('edit-sidebar');
+            var formDiv = document.getElementById('sidebar-form');
+            var footerDiv = document.getElementById('sidebar-footer');
+            
+            formDiv.innerHTML = '';
+            footerDiv.innerHTML = '';
+
+            var props = feature.properties || {};
+            var inputElements = {};
+
+            for (var key in props) {
+                var label = document.createElement('label');
+                label.className = 'edit-label';
+                label.innerText = key + ':';
+                formDiv.appendChild(label);
+
+                var input = document.createElement('input');
+                input.type = 'text';
+                input.className = 'edit-input';
+                input.value = props[key] !== null && props[key] !== undefined ? props[key] : '';
+                formDiv.appendChild(input);
+
+                inputElements[key] = input;
+            }
+
+            isEditMode = true;
+            currentEditing = { feature: feature, layer: layer, inputs: inputElements };
+
+            var saveBtn = document.createElement('button');
+            saveBtn.className = 'btn-custom btn-save';
+            saveBtn.innerText = 'Lưu Database';
+            saveBtn.onclick = function() { saveCurrentEdit(); closeSidebar(); };
+            footerDiv.appendChild(saveBtn);
+
+            var cancelBtn = document.createElement('button');
+            cancelBtn.className = 'btn-custom btn-cancel';
+            cancelBtn.innerText = 'Hủy';
+            cancelBtn.onclick = function() { closeSidebar(); };
+            footerDiv.appendChild(cancelBtn);
+
+            sidebar.classList.add('active');
+        }
+
+        function createPopupContent(feature, layer) {
+            var container = document.createElement('div');
+            var propsDiv = document.createElement('div');
+            propsDiv.className = 'popup-content';
+            
+            var props = feature.properties || {};
+            var html = "";
+            for (var key in props) {
+                html += "<b>" + escapeHtml(key) + ":</b> " + escapeHtml(props[key]) + "<br>";
+            }
+            propsDiv.innerHTML = html;
+            container.appendChild(propsDiv);
+
+            var btnContainer = document.createElement('div');
+            btnContainer.className = 'popup-btn-container';
+            
+            var editBtn = document.createElement('button');
+            editBtn.className = 'btn-custom btn-edit';
+            editBtn.innerText = 'Sửa';
+            editBtn.onclick = function() { openSidebar(feature, layer); map.closePopup(); };
+            btnContainer.appendChild(editBtn);
+            container.appendChild(btnContainer);
+
+            return container;
+        }
+
+        // HÀM HIỂN THỊ DỮ LIỆU LÊN BẢN ĐỒ DÙNG CHUNG (Cho cả Nhập File và Tải DB)
+        function renderDataToMap(geojsondata, layerName) {
+            if (currentGeoJsonLayer) {
+                map.removeLayer(currentGeoJsonLayer);
+                layerControl.removeLayer(currentGeoJsonLayer);
+            }
+
+            currentGeoJsonLayer = L.geoJSON(geojsondata, {
+                style: function (feature) { return { color: "#e74c3c", weight: 3, fillColor: "#3498db", fillOpacity: 0.5 }; },
+                onEachFeature: function (feature, layer) {
+                    if (!feature.id) { feature.id = 'feat_' + Math.random().toString(36).substr(2, 9); }
+                    if (feature.properties) { layer.bindPopup(createPopupContent(feature, layer)); }
+                    
+                    layer.on('click', function(e) {
+                        if (isEditMode) {
+                            if (currentEditing && currentEditing.layer === layer) return;
+                            saveCurrentEdit(); // Tự động lưu thửa cũ vào DB
+                            map.closePopup();
+                            openSidebar(feature, layer); // Mở thửa mới
+                        }
+                    });
+                }
+            });
+
+            currentGeoJsonLayer.addTo(map);
+            layerControl.addOverlay(currentGeoJsonLayer, layerName);
+            if (currentGeoJsonLayer.getBounds().isValid()) {
+                map.fitBounds(currentGeoJsonLayer.getBounds());
+            }
+        }
+
+        // SỰ KIỆN: TẢI FILE TỪ MÁY
+        document.getElementById('geojsonFile').addEventListener('change', function(e) {
+            var file = e.target.files[0];
+            if (!file) return;
+            closeSidebar();
+            var reader = new FileReader();
+            reader.onload = function(event) {
+                try {
+                    renderDataToMap(JSON.parse(event.target.result), file.name);
+                } catch (err) { alert("Lỗi đọc file GeoJSON!"); }
+            };
+            reader.readAsText(file);
+        });
+
+        // =========================================================================
+        // SỰ KIỆN: TẢI DỮ LIỆU TỪ DATABASE
+        // =========================================================================
+        document.getElementById('loadDbBtn').addEventListener('click', function() {
+            closeSidebar();
+            fetch('/api/get-features')
+                .then(res => res.json())
+                .then(data => {
+                    if(data.features && data.features.length > 0) {
+                        renderDataToMap(data, "Dữ liệu Database");
+                    } else {
+                        alert("Database hiện chưa có dữ liệu nào!");
+                    }
+                })
+                .catch(err => {
+                    console.error("Lỗi tải DB:", err);
+                    alert("Chưa kết nối được với Server Database!");
+                });
+        });
+
+        // SỰ KIỆN: XUẤT FILE GEOJSON
+        document.getElementById('exportBtn').addEventListener('click', function() {
+            if (!currentGeoJsonLayer) { alert("Chưa có dữ liệu để xuất!"); return; }
+            if (isEditMode) { saveCurrentEdit(); closeSidebar(); }
+
+            var exportedGeoJson = currentGeoJsonLayer.toGeoJSON();
+            var blob = new Blob([JSON.stringify(exportedGeoJson, null, 2)], { type: "application/geo+json" });
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = "dulieu_da_chinh_sua.geojson";
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(function() { document.body.removeChild(a); window.URL.revokeObjectURL(url); }, 0);
+        });
+
+        L.control.scale({imperial: false, position: 'bottomleft'}).addTo(map);
+    </script>
+</body>
+</html>
