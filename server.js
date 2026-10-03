@@ -20,11 +20,10 @@ pool.connect((err, client, release) => {
   release();
 });
 
-// API: Lấy danh sách các Dự án hiện có (An toàn với cột project_name)
+// API: Lấy danh sách các Dự án hiện có
 app.get('/api/projects', async (req, res) => {
     try {
-        // Kiểm tra và lấy danh sách dự án, gán mặc định nếu null
-        const result = await pool.query('SELECT DISTINCT COALESCE(project_name, 'Dự án Mặc định') as project_name FROM geojson_features ORDER BY project_name ASC');
+        const result = await pool.query("SELECT DISTINCT COALESCE(project_name, 'Dự án Mặc định') as project_name FROM geojson_features ORDER BY project_name ASC");
         res.json({ success: true, projects: result.rows.map(r => r.project_name) });
     } catch (err) {
         console.error("Lỗi lấy danh sách dự án:", err);
@@ -36,7 +35,7 @@ app.get('/api/projects', async (req, res) => {
 app.delete('/api/delete-project/:projectName', async (req, res) => {
     const projectName = req.params.projectName;
     try {
-        await pool.query('DELETE FROM geojson_features WHERE project_name = $1 OR (project_name IS NULL AND $1 = 'Dự án Mặc định')', [projectName]);
+        await pool.query("DELETE FROM geojson_features WHERE project_name = $1 OR (project_name IS NULL AND $1 = 'Dự án Mặc định')", [projectName]);
         res.json({ success: true, message: 'Đã xóa dự án thành công!' });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
@@ -130,7 +129,7 @@ app.get('/api/get-features', async (req, res) => {
         };
         res.json(geojson);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ success: false, error: err.message });
     }
 });
 
