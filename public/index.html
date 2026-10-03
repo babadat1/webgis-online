@@ -147,6 +147,28 @@
         var currentEditing = null; 
         const API_URL = window.location.origin;
         var currentActiveProject = ""; // Lưu tên dự án đang xem
+        
+        // Cấu hình giao diện Highlight
+        var highlightedLayer = null;
+        var defaultStyle = { color: "#3498db", weight: 2, fillColor: "#3498db", fillOpacity: 0.4 }; // Mặc định màu Xanh dương
+        var highlightStyle = { color: "#e74c3c", weight: 4, fillColor: "#e74c3c", fillOpacity: 0.7 }; // Khi click vào thành Đỏ rực
+
+        function highlightFeature(layer) {
+            // Xóa highlight của lớp cũ nếu có
+            if (highlightedLayer && currentGeoJsonLayer) {
+                currentGeoJsonLayer.resetStyle(highlightedLayer);
+            }
+            highlightedLayer = layer;
+            
+            // Tô đỏ lớp mới
+            if (layer.setStyle) {
+                layer.setStyle(highlightStyle);
+                // Đẩy lớp được chọn nổi lên trên cùng để không bị lớp khác che khuất
+                if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
+                    layer.bringToFront();
+                }
+            }
+        }
 
         function showLoading(msg) {
             document.getElementById('loading-text').innerText = msg;
@@ -280,10 +302,10 @@
             features.forEach(item => {
                 var tr = document.createElement('tr');
                 var tdAction = document.createElement('td'); var zoomBtn = document.createElement('button'); zoomBtn.className = 'btn-custom btn-edit'; zoomBtn.innerText = '📍'; zoomBtn.style.padding = '3px 6px';
-                zoomBtn.onclick = function(e) { e.stopPropagation(); toggleAttributeTable(); if (item.layer.getBounds) { map.fitBounds(item.layer.getBounds(), { maxZoom: 20 }); item.layer.openPopup(); } };
+                zoomBtn.onclick = function(e) { e.stopPropagation(); toggleAttributeTable(); if (item.layer.getBounds) { map.fitBounds(item.layer.getBounds(), { maxZoom: 20 }); item.layer.openPopup(); highlightFeature(item.layer); } };
                 tdAction.appendChild(zoomBtn); tr.appendChild(tdAction);
                 keys.forEach(key => { var td = document.createElement('td'); var val = item.feature.properties[key]; td.innerText = val !== null && val !== undefined ? val : ''; tr.appendChild(td); });
-                tr.onclick = function() { toggleAttributeTable(); if (item.layer.getBounds) map.fitBounds(item.layer.getBounds(), { maxZoom: 20 }); openSidebar(item.feature, item.layer); };
+                tr.onclick = function() { toggleAttributeTable(); if (item.layer.getBounds) { map.fitBounds(item.layer.getBounds(), { maxZoom: 20 }); item.layer.openPopup(); highlightFeature(item.layer); } openSidebar(item.feature, item.layer); };
                 tbody.appendChild(tr);
             });
             tableEl.appendChild(tbody);
@@ -295,11 +317,12 @@
         function renderDataToMap(geojsondata, layerName) {
             if (currentGeoJsonLayer) { map.removeLayer(currentGeoJsonLayer); layerControl.removeLayer(currentGeoJsonLayer); }
             currentGeoJsonLayer = L.geoJSON(geojsondata, {
-                style: function (feature) { return { color: "#e74c3c", weight: 3, fillColor: "#3498db", fillOpacity: 0.5 }; },
+                style: function (feature) { return defaultStyle; },
                 onEachFeature: function (feature, layer) {
                     if (!feature.id) { feature.id = 'feat_' + Math.random().toString(36).substr(2, 9); }
                     if (feature.properties) { layer.bindPopup(createPopupContent(feature, layer)); }
                     layer.on('click', function(e) {
+                        highlightFeature(layer);
                         if (isEditMode) { if (currentEditing && currentEditing.layer === layer) return; saveCurrentEdit(); map.closePopup(); openSidebar(feature, layer); }
                     });
                 }
