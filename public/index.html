@@ -66,9 +66,38 @@
         table.attribute-table tr:hover { background-color: #f9f9f9; cursor: pointer; }
         
         #loading-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.8); z-index: 3000; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 18px; color: #2c3e50; display: none; flex-direction: column; }
-    </style>
+    
+        #login-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(44, 62, 80, 0.95); z-index: 9999; display: flex; justify-content: center; align-items: center; }
+        .login-box { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); width: 320px; }
+        .role-badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; color: white; margin-bottom: 10px; }
+        .role-admin { background-color: #e74c3c; }
+        .role-guest { background-color: #3498db; }
+</style>
 </head>
 <body>
+    <!-- Màn hình Đăng nhập -->
+    <div id="login-overlay">
+        <div class="login-box">
+            <h2 style="margin-top:0; color:#2c3e50; text-align:center; font-size: 20px;">ĐĂNG NHẬP HỆ THỐNG</h2>
+            <div style="margin-bottom: 15px;">
+                <label style="display:block; margin-bottom:5px; font-weight:bold; font-size:13px;">Tên tài khoản:</label>
+                <input type="text" id="username" class="edit-input" placeholder="Nhập tài khoản...">
+            </div>
+            <div style="margin-bottom: 20px;">
+                <label style="display:block; margin-bottom:5px; font-weight:bold; font-size:13px;">Mật khẩu:</label>
+                <input type="password" id="password" class="edit-input" placeholder="Nhập mật khẩu...">
+            </div>
+            <button id="loginBtn" class="btn-custom btn-save" style="width:100%; padding:10px; font-size:14px; font-weight:bold;">ĐĂNG NHẬP</button>
+            <div id="login-error" style="color:#e74c3c; font-size:13px; margin-top:10px; text-align:center; display:none; font-weight:bold;"></div>
+            
+            <hr style="margin: 15px 0; border: 0; border-top: 1px solid #eee;">
+            <div style="font-size:12px; color:#7f8c8d; text-align:center; line-height: 1.5;">
+                <b>Tài khoản Admin:</b> admin / admin123<br>
+                <b>Tài khoản Khách:</b> khach / khach123
+            </div>
+        </div>
+    </div>
+    
     <div id="loading-overlay">
         <div style="font-size: 30px; margin-bottom: 10px;">⏳</div>
         <div id="loading-text">Đang xử lý dữ liệu... Vui lòng chờ</div>
@@ -86,7 +115,7 @@
             <button id="loadDbBtn" class="btn-custom btn-db" style="margin-top: 8px;">🔄 Tải Bản Đồ Dự Án Này</button>
         </div>
 
-        <div class="project-group" style="background: #e8f6f3; border-color: #1abc9c;">
+        <div id="upload-section" class="project-group" style="background: #e8f6f3; border-color: #1abc9c;">
             <label style="color: #16a085;">2. Thêm dự án mới:</label>
             <input type="file" id="geojsonFile" accept=".geojson, .json" />
             <div style="font-size: 11px; color: #7f8c8d; margin-top: 3px;">Tên file sẽ là Tên Dự án</div>
@@ -147,6 +176,7 @@
         var currentEditing = null; 
         const API_URL = window.location.origin;
         var currentActiveProject = ""; // Lưu tên dự án đang xem
+        var currentUserRole = null; // Biến lưu quyền người dùng (admin/guest)
         
         // Cấu hình giao diện Highlight
         var highlightedLayer = null;
@@ -200,7 +230,62 @@
                 }).catch(err => console.error("Lỗi lấy danh sách DA:", err));
         }
 
-        window.onload = function() { loadProjectList(); };
+        // Xử lý đăng nhập
+        document.getElementById('loginBtn').addEventListener('click', function() {
+            let u = document.getElementById('username').value;
+            let p = document.getElementById('password').value;
+            let err = document.getElementById('login-error');
+            err.style.display = 'none';
+
+            if(!u || !p) { err.innerText = "Vui lòng nhập đủ thông tin!"; err.style.display = 'block'; return; }
+
+            let loginBtn = document.getElementById('loginBtn');
+            loginBtn.innerText = 'Đang xử lý...';
+
+            fetch(API_URL + '/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({username: u, password: p})
+            }).then(res => res.json()).then(data => {
+                loginBtn.innerText = 'ĐĂNG NHẬP';
+                if(data.success) {
+                    currentUserRole = data.role;
+                    document.getElementById('login-overlay').style.display = 'none';
+                    applyPermissions(); // Áp dụng quyền
+                    loadProjectList(); // Tải danh sách dự án
+                } else {
+                    err.innerText = data.message; err.style.display = 'block';
+                }
+            }).catch(e => {
+                loginBtn.innerText = 'ĐĂNG NHẬP';
+                err.innerText = "Lỗi kết nối tới Server!"; err.style.display = 'block';
+            });
+        });
+
+        // Hàm ẩn các công cụ chỉnh sửa nếu là Khách
+        function applyPermissions() {
+            if (currentUserRole === 'guest') {
+                document.getElementById('delProjectBtn').style.display = 'none'; // Ẩn nút xóa dự án
+                document.getElementById('upload-section').style.display = 'none'; // Ẩn khu tải file mới
+                
+                // Hiển thị huy hiệu Khách
+                let badge = document.createElement('div');
+                badge.className = 'role-badge role-guest';
+                badge.innerText = '👤 Khách (Chỉ xem)';
+                document.querySelector('.file-control').insertBefore(badge, document.querySelector('.project-group'));
+            } else if (currentUserRole === 'admin') {
+                // Hiển thị huy hiệu Admin
+                let badge = document.createElement('div');
+                badge.className = 'role-badge role-admin';
+                badge.innerText = '👑 Admin (Toàn quyền)';
+                document.querySelector('.file-control').insertBefore(badge, document.querySelector('.project-group'));
+            }
+        }
+        
+        // Không tự động load nữa, chờ đăng nhập thành công mới load
+        window.onload = function() { 
+            // Khởi tạo không làm gì cả, chờ login
+        };
 
         // Xóa dự án
         document.getElementById('delProjectBtn').addEventListener('click', function() {
@@ -281,10 +366,13 @@
             var html = "";
             for (var key in feature.properties) html += "<b>" + escapeHtml(key) + ":</b> " + escapeHtml(feature.properties[key]) + "<br>";
             propsDiv.innerHTML = html; container.appendChild(propsDiv);
-            var btnContainer = document.createElement('div'); btnContainer.className = 'popup-btn-container';
-            var editBtn = document.createElement('button'); editBtn.className = 'btn-custom btn-edit'; editBtn.innerText = 'Sửa';
-            editBtn.onclick = function() { openSidebar(feature, layer); map.closePopup(); };
-            btnContainer.appendChild(editBtn); container.appendChild(btnContainer);
+            // Chỉ hiện nút "Sửa" nếu là Admin
+            if (currentUserRole === 'admin') {
+                var btnContainer = document.createElement('div'); btnContainer.className = 'popup-btn-container';
+                var editBtn = document.createElement('button'); editBtn.className = 'btn-custom btn-edit'; editBtn.innerText = 'Sửa';
+                editBtn.onclick = function() { openSidebar(feature, layer); map.closePopup(); };
+                btnContainer.appendChild(editBtn); container.appendChild(btnContainer);
+            }
             return container;
         }
 
@@ -305,7 +393,7 @@
                 zoomBtn.onclick = function(e) { e.stopPropagation(); toggleAttributeTable(); if (item.layer.getBounds) { map.fitBounds(item.layer.getBounds(), { maxZoom: 20 }); item.layer.openPopup(); highlightFeature(item.layer); } };
                 tdAction.appendChild(zoomBtn); tr.appendChild(tdAction);
                 keys.forEach(key => { var td = document.createElement('td'); var val = item.feature.properties[key]; td.innerText = val !== null && val !== undefined ? val : ''; tr.appendChild(td); });
-                tr.onclick = function() { toggleAttributeTable(); if (item.layer.getBounds) { map.fitBounds(item.layer.getBounds(), { maxZoom: 20 }); item.layer.openPopup(); highlightFeature(item.layer); } openSidebar(item.feature, item.layer); };
+                tr.onclick = function() { toggleAttributeTable(); if (item.layer.getBounds) { map.fitBounds(item.layer.getBounds(), { maxZoom: 20 }); item.layer.openPopup(); highlightFeature(item.layer); } if (currentUserRole === 'admin') { openSidebar(item.feature, item.layer); } };
                 tbody.appendChild(tr);
             });
             tableEl.appendChild(tbody);
@@ -323,7 +411,7 @@
                     if (feature.properties) { layer.bindPopup(createPopupContent(feature, layer)); }
                     layer.on('click', function(e) {
                         highlightFeature(layer);
-                        if (isEditMode) { if (currentEditing && currentEditing.layer === layer) return; saveCurrentEdit(); map.closePopup(); openSidebar(feature, layer); }
+                        if (currentUserRole === 'admin' && isEditMode) { if (currentEditing && currentEditing.layer === layer) return; saveCurrentEdit(); map.closePopup(); openSidebar(feature, layer); }
                     });
                 }
             });
