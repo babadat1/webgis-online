@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebGIS - Quản lý & Bản đồ Đất đai</title>
+    <title>WebGIS - Quản lý Đa Dự án Đất đai</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         body, html { margin: 0; padding: 0; height: 100%; width: 100%; font-family: Arial, sans-serif; overflow: hidden; }
@@ -11,13 +11,18 @@
         
         .file-control {
             position: absolute; top: 10px; left: 60px; background: white;
-            padding: 10px 15px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-            z-index: 1000; font-size: 14px; width: 250px;
+            padding: 15px; border-radius: 6px; box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            z-index: 1000; font-size: 13px; width: 250px;
         }
-        .file-control input { margin-top: 5px; width: 100%; }
+        .file-control input[type="file"] { margin-top: 5px; width: 100%; font-size: 12px; }
+
+        .project-group { background: #f8f9fa; padding: 10px; border-radius: 5px; border: 1px solid #ddd; margin-bottom: 12px; }
+        .project-group label { font-weight: bold; color: #2c3e50; display: block; margin-bottom: 5px;}
+        .project-row { display: flex; gap: 5px; align-items: center; }
+        .project-row select { flex: 1; padding: 6px; border-radius: 4px; border: 1px solid #ccc; font-size: 13px; }
 
         .sidebar {
-            position: absolute; top: 220px; left: 10px; width: 320px; bottom: 20px;
+            position: absolute; top: 320px; left: 10px; width: 320px; bottom: 20px;
             background: white; border-radius: 5px; box-shadow: 0 2px 10px rgba(0,0,0,0.4);
             z-index: 1000; display: none; flex-direction: column;
         }
@@ -28,10 +33,11 @@
 
         .popup-content { font-size: 13px; max-height: 250px; overflow-y: auto; padding-right: 5px; min-width: 180px; }
         .popup-btn-container { margin-top: 8px; text-align: right; }
-        .btn-custom { color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; margin-left: 4px; transition: 0.2s; }
+        
+        .btn-custom { color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; transition: 0.2s; }
         .btn-edit { background-color: #3498db; } .btn-edit:hover { background-color: #2980b9; }
         .btn-save { background-color: #2ecc71; } .btn-save:hover { background-color: #27ae60; }
-        .btn-cancel { background-color: #e74c3c; } .btn-cancel:hover { background-color: #c0392b; }
+        .btn-cancel { background-color: #e74c3c; padding: 6px 8px; font-weight: bold;} .btn-cancel:hover { background-color: #c0392b; }
         .btn-db { background-color: #f39c12; width: 100%; margin-bottom: 6px; font-weight: bold; padding: 7px; font-size: 13px;} .btn-db:hover { background-color: #e67e22; }
         .btn-table { background-color: #9b59b6; width: 100%; margin-bottom: 6px; font-weight: bold; padding: 7px; font-size: 13px;} .btn-table:hover { background-color: #8e44ad; }
         .btn-report { background-color: #1abc9c; width: 100%; margin-bottom: 6px; font-weight: bold; padding: 7px; font-size: 13px; text-decoration: none; display: block; text-align: center; box-sizing: border-box;} .btn-report:hover { background-color: #16a085; }
@@ -59,23 +65,37 @@
         table.attribute-table th { background-color: #f2f2f2; position: sticky; top: 0; z-index: 1; }
         table.attribute-table tr:hover { background-color: #f9f9f9; cursor: pointer; }
         
-        #loading-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.8); z-index: 3000; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 18px; color: #2c3e50; display: none; }
+        #loading-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.8); z-index: 3000; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 18px; color: #2c3e50; display: none; flex-direction: column; }
     </style>
 </head>
 <body>
-
-    <div id="loading-overlay">Đang đồng bộ dữ liệu... Vui lòng chờ ⏳</div>
+    <div id="loading-overlay">
+        <div style="font-size: 30px; margin-bottom: 10px;">⏳</div>
+        <div id="loading-text">Đang xử lý dữ liệu... Vui lòng chờ</div>
+    </div>
 
     <div class="file-control">
-        <button id="loadDbBtn" class="btn-custom btn-db">Tải Dữ Liệu Từ Database</button>
+        <div class="project-group">
+            <label>1. Cửa sổ Dự Án:</label>
+            <div class="project-row">
+                <select id="projectSelect">
+                    <option value="">-- Chọn dự án --</option>
+                </select>
+                <button id="delProjectBtn" class="btn-custom btn-cancel" title="Xóa dự án này">✕</button>
+            </div>
+            <button id="loadDbBtn" class="btn-custom btn-db" style="margin-top: 8px;">🔄 Tải Bản Đồ Dự Án Này</button>
+        </div>
+
+        <div class="project-group" style="background: #e8f6f3; border-color: #1abc9c;">
+            <label style="color: #16a085;">2. Thêm dự án mới:</label>
+            <input type="file" id="geojsonFile" accept=".geojson, .json" />
+            <div style="font-size: 11px; color: #7f8c8d; margin-top: 3px;">Tên file sẽ là Tên Dự án</div>
+        </div>
+
         <button id="openTableBtn" class="btn-custom btn-table">Mở Bảng Thuộc Tính</button>
         <a href="report.html" class="btn-custom btn-report" target="_blank">Trang Báo Cáo Thống Kê 📊</a>
-        <hr style="margin: 6px 0; border: 0; border-top: 1px solid #ddd;">
         
-        <label for="geojsonFile"><b>Nhập file (Tự động lưu DB):</b></label>
-        <input type="file" id="geojsonFile" accept=".geojson, .json" />
-        <hr style="margin: 6px 0; border: 0; border-top: 1px solid #ddd;">
-        
+        <hr style="margin: 8px 0; border: 0; border-top: 1px solid #ddd;">
         <button id="exportBtn" class="btn-custom btn-save" style="width: 100%; margin: 0; padding: 7px; font-weight: bold; font-size: 13px;">Xuất File (.geojson)</button>
         <div id="saving-status">✓ Đã đồng bộ Database</div>
     </div>
@@ -99,346 +119,249 @@
     <div id="map"></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
     <script>
-        var googleRoad = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', { maxZoom: 22, subdomains: ['mt0', 'mt1', 'mt2', 'mt3']});
+        var map = L.map('map', { center: [10.7769, 106.7009], zoom: 13, maxZoom: 22 });
+        var googleRoad = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', { maxZoom: 22, subdomains: ['mt0', 'mt1', 'mt2', 'mt3']}).addTo(map);
         var googleSat = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', { maxZoom: 22, subdomains: ['mt0', 'mt1', 'mt2', 'mt3']});
-        var googleHybrid = L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { maxZoom: 22, subdomains: ['mt0', 'mt1', 'mt2', 'mt3']});
-
-        var map = L.map('map', { center: [10.7769, 106.7009], zoom: 13, maxZoom: 22, layers: [googleRoad] });
-        var layerControl = L.control.layers({"Giao thông": googleRoad, "Vệ tinh": googleSat, "Hỗn hợp": googleHybrid}, null, {position: 'topright'}).addTo(map);
+        var layerControl = L.control.layers({"Giao thông": googleRoad, "Vệ tinh": googleSat}, null, {position: 'topright'}).addTo(map);
+        
         var currentGeoJsonLayer = null;
-
         var isEditMode = false;
         var currentEditing = null; 
         const API_URL = window.location.origin;
+        var currentActiveProject = ""; // Lưu tên dự án đang xem
 
-        // --- TÍNH NĂNG TỰ ĐỘNG LẤY DỮ LIỆU KHI MỞ WEB ---
-        window.onload = function() {
-            document.getElementById('loadDbBtn').click();
-        };
+        function showLoading(msg) {
+            document.getElementById('loading-text').innerText = msg;
+            document.getElementById('loading-overlay').style.display = 'flex';
+        }
+        function hideLoading() { document.getElementById('loading-overlay').style.display = 'none'; }
 
-        function saveToLocalStorageCache(geojson) {
-            localStorage.setItem('webgis_cache_data', JSON.stringify(geojson));
+        // --- HỆ THỐNG QUẢN LÝ DỰ ÁN ---
+        function loadProjectList() {
+            fetch(API_URL + '/api/projects')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        let select = document.getElementById('projectSelect');
+                        let oldVal = select.value;
+                        select.innerHTML = '<option value="">-- Chọn dự án --</option>';
+                        data.projects.forEach(p => {
+                            let opt = document.createElement('option');
+                            opt.value = p;
+                            opt.innerText = p;
+                            select.appendChild(opt);
+                        });
+                        if(data.projects.includes(oldVal)) select.value = oldVal;
+                        else if(data.projects.length > 0) {
+                            select.value = data.projects[0];
+                            document.getElementById('loadDbBtn').click();
+                        }
+                    }
+                }).catch(err => console.error("Lỗi lấy danh sách DA:", err));
         }
 
-        function escapeHtml(text) {
-            if (text === null || text === undefined) return '';
-            return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
-        }
+        window.onload = function() { loadProjectList(); };
 
-        function closeSidebar() {
-            document.getElementById('edit-sidebar').classList.remove('active');
-            isEditMode = false;
-            currentEditing = null;
-        }
+        // Xóa dự án
+        document.getElementById('delProjectBtn').addEventListener('click', function() {
+            let p = document.getElementById('projectSelect').value;
+            if(!p) return alert("Vui lòng chọn dự án cần xóa!");
+            if(confirm(`Bạn có chắc muốn XÓA TOÀN BỘ dữ liệu của dự án [${p}]? Hành động này không thể hoàn tác!`)) {
+                showLoading("Đang xóa dự án...");
+                fetch(API_URL + '/api/delete-project/' + encodeURIComponent(p), { method: 'DELETE' })
+                    .then(res => res.json())
+                    .then(data => {
+                        hideLoading();
+                        if(data.success) {
+                            alert(data.message);
+                            if (currentGeoJsonLayer) { map.removeLayer(currentGeoJsonLayer); layerControl.removeLayer(currentGeoJsonLayer); currentGeoJsonLayer = null; }
+                            localStorage.removeItem('webgis_cache_data');
+                            loadProjectList();
+                        } else alert("Lỗi xóa: " + data.error);
+                    });
+            }
+        });
 
-        function showSaveStatus(msg) {
-            var status = document.getElementById('saving-status');
-            if(msg) status.innerText = msg;
-            status.style.display = 'block';
-            setTimeout(() => { status.style.display = 'none'; }, 3000);
-        }
+        // Đổi Project -> Tự load map
+        document.getElementById('projectSelect').addEventListener('change', function() {
+            if(this.value) document.getElementById('loadDbBtn').click();
+        });
+
+        function saveToLocalStorageCache(geojson) { localStorage.setItem('webgis_cache_data', JSON.stringify(geojson)); }
+        function escapeHtml(text) { return text === null || text === undefined ? '' : String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); }
+        function closeSidebar() { document.getElementById('edit-sidebar').classList.remove('active'); isEditMode = false; currentEditing = null; }
+        function showSaveStatus(msg) { var status = document.getElementById('saving-status'); if(msg) status.innerText = msg; status.style.display = 'block'; setTimeout(() => { status.style.display = 'none'; }, 3000); }
 
         function saveCurrentEdit() {
             if (currentEditing) {
                 for (var key in currentEditing.inputs) {
                     currentEditing.feature.properties[key] = currentEditing.inputs[key].value;
                 }
-
                 fetch(API_URL + '/api/save-feature', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         id: currentEditing.feature.id,
                         properties: currentEditing.feature.properties,
-                        geometry: currentEditing.feature.geometry
+                        geometry: currentEditing.feature.geometry,
+                        projectName: currentActiveProject
                     })
-                })
-                .then(res => res.json())
-                .then(data => {
-                    showSaveStatus("✓ Đã đồng bộ sửa đổi");
-                    if (currentGeoJsonLayer) {
-                        saveToLocalStorageCache(currentGeoJsonLayer.toGeoJSON());
-                    }
-                })
-                .catch(err => { console.error("Lỗi Database:", err); });
-
+                }).then(res => res.json()).then(data => {
+                    showSaveStatus("✓ Đã lưu sửa đổi");
+                    if (currentGeoJsonLayer) saveToLocalStorageCache(currentGeoJsonLayer.toGeoJSON());
+                });
                 currentGeoJsonLayer.resetStyle(currentEditing.layer);
                 currentEditing.layer.bindPopup(createPopupContent(currentEditing.feature, currentEditing.layer));
             }
         }
 
+        // --- CÁC HÀM UI ---
         function openSidebar(feature, layer) {
             var sidebar = document.getElementById('edit-sidebar');
             var formDiv = document.getElementById('sidebar-form');
             var footerDiv = document.getElementById('sidebar-footer');
-            
-            formDiv.innerHTML = '';
-            footerDiv.innerHTML = '';
-
-            var props = feature.properties || {};
-            var inputElements = {};
-
+            formDiv.innerHTML = ''; footerDiv.innerHTML = '';
+            var props = feature.properties || {}; var inputElements = {};
             for (var key in props) {
-                var label = document.createElement('label');
-                label.className = 'edit-label';
-                label.innerText = key + ':';
-                formDiv.appendChild(label);
-
-                var input = document.createElement('input');
-                input.type = 'text';
-                input.className = 'edit-input';
-                input.value = props[key] !== null && props[key] !== undefined ? props[key] : '';
-                formDiv.appendChild(input);
-
+                var label = document.createElement('label'); label.className = 'edit-label'; label.innerText = key + ':'; formDiv.appendChild(label);
+                var input = document.createElement('input'); input.type = 'text'; input.className = 'edit-input'; input.value = props[key] !== null && props[key] !== undefined ? props[key] : ''; formDiv.appendChild(input);
                 inputElements[key] = input;
             }
-
-            isEditMode = true;
-            currentEditing = { feature: feature, layer: layer, inputs: inputElements };
-
-            var saveBtn = document.createElement('button');
-            saveBtn.className = 'btn-custom btn-save';
-            saveBtn.innerText = 'Lưu Database';
-            saveBtn.onclick = function() { saveCurrentEdit(); closeSidebar(); };
-            footerDiv.appendChild(saveBtn);
-
-            var cancelBtn = document.createElement('button');
-            cancelBtn.className = 'btn-custom btn-cancel';
-            cancelBtn.innerText = 'Hủy';
-            cancelBtn.onclick = function() { closeSidebar(); };
-            footerDiv.appendChild(cancelBtn);
-
+            isEditMode = true; currentEditing = { feature: feature, layer: layer, inputs: inputElements };
+            var saveBtn = document.createElement('button'); saveBtn.className = 'btn-custom btn-save'; saveBtn.innerText = 'Lưu Database';
+            saveBtn.onclick = function() { saveCurrentEdit(); closeSidebar(); }; footerDiv.appendChild(saveBtn);
+            var cancelBtn = document.createElement('button'); cancelBtn.className = 'btn-custom btn-cancel'; cancelBtn.innerText = 'Hủy';
+            cancelBtn.onclick = function() { closeSidebar(); }; footerDiv.appendChild(cancelBtn);
             sidebar.classList.add('active');
         }
 
         function createPopupContent(feature, layer) {
             var container = document.createElement('div');
-            var propsDiv = document.createElement('div');
-            propsDiv.className = 'popup-content';
-            
-            var props = feature.properties || {};
+            var propsDiv = document.createElement('div'); propsDiv.className = 'popup-content';
             var html = "";
-            for (var key in props) {
-                html += "<b>" + escapeHtml(key) + ":</b> " + escapeHtml(props[key]) + "<br>";
-            }
-            propsDiv.innerHTML = html;
-            container.appendChild(propsDiv);
-
-            var btnContainer = document.createElement('div');
-            btnContainer.className = 'popup-btn-container';
-            
-            var editBtn = document.createElement('button');
-            editBtn.className = 'btn-custom btn-edit';
-            editBtn.innerText = 'Sửa';
+            for (var key in feature.properties) html += "<b>" + escapeHtml(key) + ":</b> " + escapeHtml(feature.properties[key]) + "<br>";
+            propsDiv.innerHTML = html; container.appendChild(propsDiv);
+            var btnContainer = document.createElement('div'); btnContainer.className = 'popup-btn-container';
+            var editBtn = document.createElement('button'); editBtn.className = 'btn-custom btn-edit'; editBtn.innerText = 'Sửa';
             editBtn.onclick = function() { openSidebar(feature, layer); map.closePopup(); };
-            btnContainer.appendChild(editBtn);
-            container.appendChild(btnContainer);
-
+            btnContainer.appendChild(editBtn); container.appendChild(btnContainer);
             return container;
         }
 
         function renderAttributeTable() {
-            var tableEl = document.getElementById('attrTableElement');
-            tableEl.innerHTML = '';
+            var tableEl = document.getElementById('attrTableElement'); tableEl.innerHTML = '';
             if (!currentGeoJsonLayer) return;
-
-            var features = [];
-            currentGeoJsonLayer.eachLayer(function(layer) {
-                if (layer.feature && layer.feature.properties) {
-                    features.push({ feature: layer.feature, layer: layer });
-                }
-            });
-
+            var features = []; currentGeoJsonLayer.eachLayer(function(layer) { if (layer.feature && layer.feature.properties) features.push({ feature: layer.feature, layer: layer }); });
             if (features.length === 0) return;
-
             var keys = Object.keys(features[0].feature.properties);
-
-            var thead = document.createElement('thead');
-            var headerTr = document.createElement('tr');
-            var thAction = document.createElement('th');
-            thAction.innerText = "Hành động";
-            headerTr.appendChild(thAction);
-
-            keys.forEach(function(key) {
-                var th = document.createElement('th');
-                th.innerText = key;
-                headerTr.appendChild(th);
-            });
-            thead.appendChild(headerTr);
-            tableEl.appendChild(thead);
-
+            var thead = document.createElement('thead'); var headerTr = document.createElement('tr');
+            var thAction = document.createElement('th'); thAction.innerText = "Zoom"; headerTr.appendChild(thAction);
+            keys.forEach(key => { var th = document.createElement('th'); th.innerText = key; headerTr.appendChild(th); });
+            thead.appendChild(headerTr); tableEl.appendChild(thead);
             var tbody = document.createElement('tbody');
-            features.forEach(function(item) {
+            features.forEach(item => {
                 var tr = document.createElement('tr');
-                
-                var tdAction = document.createElement('td');
-                var zoomBtn = document.createElement('button');
-                zoomBtn.className = 'btn-custom btn-edit';
-                zoomBtn.innerText = 'Xem trên bản đồ';
-                zoomBtn.style.padding = '3px 8px';
-                zoomBtn.style.fontSize = '11px';
-                zoomBtn.onclick = function(e) {
-                    e.stopPropagation();
-                    toggleAttributeTable();
-                    if (item.layer.getBounds) {
-                        map.fitBounds(item.layer.getBounds(), { maxZoom: 20 });
-                        item.layer.openPopup();
-                    }
-                };
-                tdAction.appendChild(zoomBtn);
-                tr.appendChild(tdAction);
-
-                keys.forEach(function(key) {
-                    var td = document.createElement('td');
-                    var val = item.feature.properties[key];
-                    td.innerText = val !== null && val !== undefined ? val : '';
-                    tr.appendChild(td);
-                });
-
-                tr.onclick = function() {
-                    toggleAttributeTable();
-                    if (item.layer.getBounds) {
-                        map.fitBounds(item.layer.getBounds(), { maxZoom: 20 });
-                    }
-                    openSidebar(item.feature, item.layer);
-                };
-
+                var tdAction = document.createElement('td'); var zoomBtn = document.createElement('button'); zoomBtn.className = 'btn-custom btn-edit'; zoomBtn.innerText = '📍'; zoomBtn.style.padding = '3px 6px';
+                zoomBtn.onclick = function(e) { e.stopPropagation(); toggleAttributeTable(); if (item.layer.getBounds) { map.fitBounds(item.layer.getBounds(), { maxZoom: 20 }); item.layer.openPopup(); } };
+                tdAction.appendChild(zoomBtn); tr.appendChild(tdAction);
+                keys.forEach(key => { var td = document.createElement('td'); var val = item.feature.properties[key]; td.innerText = val !== null && val !== undefined ? val : ''; tr.appendChild(td); });
+                tr.onclick = function() { toggleAttributeTable(); if (item.layer.getBounds) map.fitBounds(item.layer.getBounds(), { maxZoom: 20 }); openSidebar(item.feature, item.layer); };
                 tbody.appendChild(tr);
             });
             tableEl.appendChild(tbody);
         }
 
-        function toggleAttributeTable() {
-            var modal = document.getElementById('attributeModal');
-            if (modal.classList.contains('active')) {
-                modal.classList.remove('active');
-            } else {
-                renderAttributeTable();
-                modal.classList.add('active');
-            }
-        }
-
-        document.getElementById('openTableBtn').addEventListener('click', function() {
-            toggleAttributeTable();
-        });
+        function toggleAttributeTable() { var modal = document.getElementById('attributeModal'); if (modal.classList.contains('active')) { modal.classList.remove('active'); } else { renderAttributeTable(); modal.classList.add('active'); } }
+        document.getElementById('openTableBtn').addEventListener('click', toggleAttributeTable);
 
         function renderDataToMap(geojsondata, layerName) {
-            if (currentGeoJsonLayer) {
-                map.removeLayer(currentGeoJsonLayer);
-                layerControl.removeLayer(currentGeoJsonLayer);
-            }
-
+            if (currentGeoJsonLayer) { map.removeLayer(currentGeoJsonLayer); layerControl.removeLayer(currentGeoJsonLayer); }
             currentGeoJsonLayer = L.geoJSON(geojsondata, {
                 style: function (feature) { return { color: "#e74c3c", weight: 3, fillColor: "#3498db", fillOpacity: 0.5 }; },
                 onEachFeature: function (feature, layer) {
                     if (!feature.id) { feature.id = 'feat_' + Math.random().toString(36).substr(2, 9); }
                     if (feature.properties) { layer.bindPopup(createPopupContent(feature, layer)); }
-                    
                     layer.on('click', function(e) {
-                        if (isEditMode) {
-                            if (currentEditing && currentEditing.layer === layer) return;
-                            saveCurrentEdit(); 
-                            map.closePopup();
-                            openSidebar(feature, layer); 
-                        }
+                        if (isEditMode) { if (currentEditing && currentEditing.layer === layer) return; saveCurrentEdit(); map.closePopup(); openSidebar(feature, layer); }
                     });
                 }
             });
-
             currentGeoJsonLayer.addTo(map);
             layerControl.addOverlay(currentGeoJsonLayer, layerName);
-            if (currentGeoJsonLayer.getBounds().isValid()) {
-                map.fitBounds(currentGeoJsonLayer.getBounds());
-            }
+            if (currentGeoJsonLayer.getBounds().isValid()) { map.fitBounds(currentGeoJsonLayer.getBounds()); }
             saveToLocalStorageCache(geojsondata);
         }
 
-        // --- TÍNH NĂNG UPLOAD ĐỒNG BỘ LÊN SERVER ---
+        // --- KẾT NỐI API THÊM DỰ ÁN MỚI ---
         document.getElementById('geojsonFile').addEventListener('change', function(e) {
             var file = e.target.files[0];
             if (!file) return;
+            
+            // Lấy tên file (bỏ đuôi .geojson) làm tên dự án
+            var pName = file.name.replace(/\.[^/.]+$/, "");
             closeSidebar();
             var reader = new FileReader();
-            
-            document.getElementById('loading-overlay').style.display = 'flex';
+            showLoading("Đang upload file lên Database...");
 
             reader.onload = function(event) {
                 try {
                     var geojson = JSON.parse(event.target.result);
-                    
-                    // Gắn id nếu chưa có
-                    geojson.features.forEach(f => {
-                        if(!f.id) f.id = 'feat_' + Math.random().toString(36).substr(2, 9);
-                    });
+                    geojson.features.forEach(f => { if(!f.id) f.id = 'feat_' + Math.random().toString(36).substr(2, 9); });
 
-                    // 1. Gửi thẳng lên Database
                     fetch(API_URL + '/api/upload-features', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ features: geojson.features })
-                    })
-                    .then(res => res.json())
-                    .then(data => {
-                        document.getElementById('loading-overlay').style.display = 'none';
+                        body: JSON.stringify({ features: geojson.features, projectName: pName })
+                    }).then(res => res.json()).then(data => {
+                        hideLoading();
                         if(data.success) {
-                            alert(data.message + "\nLần sau bạn không cần tải lại file này nữa!");
-                            // 2. Hiển thị lên Map
-                            renderDataToMap(geojson, file.name);
-                        } else {
-                            alert("Lỗi lưu DB: " + data.error);
-                        }
-                    })
-                    .catch(err => {
-                        document.getElementById('loading-overlay').style.display = 'none';
-                        alert("Lỗi mạng khi tải lên DB!");
-                        console.error(err);
+                            alert(data.message);
+                            loadProjectList(); // Cập nhật lại dropdown list
+                            setTimeout(() => {
+                                document.getElementById('projectSelect').value = pName;
+                                document.getElementById('loadDbBtn').click(); // Tự tải lại map
+                            }, 500);
+                        } else alert("Lỗi lưu DB: " + data.error);
                     });
-
-                } catch (err) { 
-                    document.getElementById('loading-overlay').style.display = 'none';
-                    alert("Lỗi đọc file GeoJSON!"); 
-                }
+                } catch (err) { hideLoading(); alert("Lỗi đọc file GeoJSON!"); }
             };
             reader.readAsText(file);
         });
 
+        // --- KẾT NỐI API TẢI DỮ LIỆU THEO DỰ ÁN ---
         document.getElementById('loadDbBtn').addEventListener('click', function() {
             closeSidebar();
+            let pName = document.getElementById('projectSelect').value;
+            if(!pName) {
+                if (currentGeoJsonLayer) { map.removeLayer(currentGeoJsonLayer); layerControl.removeLayer(currentGeoJsonLayer); currentGeoJsonLayer = null; }
+                localStorage.removeItem('webgis_cache_data');
+                return alert("Vui lòng chọn 1 Dự án từ danh sách!");
+            }
             
-            // Đổi text thành đang tải
-            let originalText = this.innerText;
-            this.innerText = "Đang tải...";
+            showLoading("Đang tải dữ liệu dự án [" + pName + "]...");
+            currentActiveProject = pName;
             
-            fetch(API_URL + '/api/get-features')
+            fetch(API_URL + '/api/get-features?project=' + encodeURIComponent(pName))
                 .then(res => res.json())
                 .then(data => {
-                    this.innerText = originalText;
+                    hideLoading();
                     if(data.features && data.features.length > 0) {
-                        renderDataToMap(data, "Dữ liệu Database chung");
-                        showSaveStatus("✓ Đã cập nhật bản đồ mới nhất");
+                        renderDataToMap(data, pName);
+                        showSaveStatus("✓ Đã cập nhật dự án mới nhất");
+                    } else {
+                        alert("Dự án này chưa có dữ liệu hoặc đã bị lỗi!");
                     }
-                })
-                .catch(err => {
-                    this.innerText = originalText;
-                    console.error("Lỗi tải DB:", err);
-                });
+                }).catch(err => { hideLoading(); console.error(err); });
         });
 
         document.getElementById('exportBtn').addEventListener('click', function() {
-            if (!currentGeoJsonLayer) { alert("Chưa có dữ liệu để xuất!"); return; }
+            if (!currentGeoJsonLayer) return alert("Chưa có dữ liệu để xuất!");
             if (isEditMode) { saveCurrentEdit(); closeSidebar(); }
-
-            var exportedGeoJson = currentGeoJsonLayer.toGeoJSON();
-            var blob = new Blob([JSON.stringify(exportedGeoJson, null, 2)], { type: "application/geo+json" });
+            var blob = new Blob([JSON.stringify(currentGeoJsonLayer.toGeoJSON(), null, 2)], { type: "application/geo+json" });
             var url = URL.createObjectURL(blob);
-            var a = document.createElement('a');
-            a.href = url;
-            a.download = "dulieu_da_chinh_sua.geojson";
-            document.body.appendChild(a);
-            a.click();
-            setTimeout(function() { document.body.removeChild(a); window.URL.revokeObjectURL(url); }, 0);
+            var a = document.createElement('a'); a.href = url; a.download = (currentActiveProject || "dulieu") + "_export.geojson";
+            document.body.appendChild(a); a.click(); document.body.removeChild(a); window.URL.revokeObjectURL(url);
         });
 
         L.control.scale({imperial: false, position: 'bottomleft'}).addTo(map);
