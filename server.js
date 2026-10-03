@@ -16,7 +16,6 @@ const pool = new Pool({
     ssl: { rejectUnauthorized: false }
 });
 
-// Khởi tạo bảng dữ liệu và bảng users khi khởi động server
 async function initDB() {
     try {
         await pool.query(`
@@ -36,7 +35,6 @@ async function initDB() {
             );
         `);
 
-        // Kiểm tra nếu chưa có user nào thì tạo mặc định
         const res = await pool.query('SELECT COUNT(*) FROM users');
         if (parseInt(res.rows[0].count) === 0) {
             await pool.query("INSERT INTO users (username, password, role) VALUES ('admin', 'admin123', 'admin')");
@@ -51,7 +49,6 @@ async function initDB() {
 
 initDB();
 
-// API: Đăng nhập
 app.post('/api/login', async (req, res) => {
     const { username, password } = req.body;
     try {
@@ -67,7 +64,6 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
-// API: Lấy danh sách tài khoản (Dành cho Admin quản lý)
 app.get('/api/users', async (req, res) => {
     try {
         const result = await pool.query('SELECT username, password, role FROM users');
@@ -77,25 +73,21 @@ app.get('/api/users', async (req, res) => {
     }
 });
 
-// API: Cập nhật tài khoản (Admin đổi tên/mật khẩu)
 app.put('/api/update-user', async (req, res) => {
     const { oldUsername, newUsername, newPassword, role } = req.body;
     try {
-        // Kiểm tra xem tên mới có bị trùng không nếu đổi tên
         if (oldUsername !== newUsername) {
             const check = await pool.query('SELECT * FROM users WHERE username = $1', [newUsername]);
             if (check.rows.length > 0) {
-                return.status(400).json({ success: false, message: 'Tên tài khoản mới đã tồn tại!' });
+                return res.status(400).json({ success: false, message: 'Tên tài khoản mới đã tồn tại!' });
             }
         }
         
-        // Cập nhật thông tin user trong DB (hoặc tạo mới nếu chưa có theo role)
         const updateQuery = `
             UPDATE users SET username = $1, password = $2 WHERE role = $3;
         `;
         const result = await pool.query(updateQuery, [newUsername, newPassword, role]);
         if (result.rowCount === 0) {
-            // Nếu chưa có dòng theo role đó, insert mới
             await pool.query('INSERT INTO users (username, password, role) VALUES ($1, $2, $3)', [newUsername, newPassword, role]);
         }
         res.json({ success: true, message: 'Cập nhật tài khoản thành công!' });
@@ -104,7 +96,6 @@ app.put('/api/update-user', async (req, res) => {
     }
 });
 
-// API: Lấy danh sách các Dự án hiện có
 app.get('/api/projects', async (req, res) => {
     try {
         const result = await pool.query("SELECT DISTINCT COALESCE(project_name, 'Dự án Mặc định') as project_name FROM geojson_features ORDER BY project_name ASC");
@@ -115,7 +106,6 @@ app.get('/api/projects', async (req, res) => {
     }
 });
 
-// API: Xóa toàn bộ 1 dự án
 app.delete('/api/delete-project/:projectName', async (req, res) => {
     const projectName = req.params.projectName;
     try {
@@ -126,7 +116,6 @@ app.delete('/api/delete-project/:projectName', async (req, res) => {
     }
 });
 
-// API: Lưu từng thửa đất khi chỉnh sửa
 app.post('/api/save-feature', async (req, res) => {
     const { id, properties, geometry, projectName } = req.body;
     const pName = projectName || 'Dự án Mặc định';
@@ -148,7 +137,6 @@ app.post('/api/save-feature', async (req, res) => {
     }
 });
 
-// API: Upload nguyên file GeoJSON
 app.post('/api/upload-features', async (req, res) => {
     const { features, projectName } = req.body;
     if (!features || !Array.isArray(features)) {
@@ -187,7 +175,6 @@ app.post('/api/upload-features', async (req, res) => {
     }
 });
 
-// API: Lấy dữ liệu của 1 dự án
 app.get('/api/get-features', async (req, res) => {
     const projectName = req.query.project;
     try {
