@@ -10,7 +10,7 @@ app.use(express.json({ limit: '50mb' })); // Tăng limit để upload file lớn
 app.use(express.static(path.join(__dirname, 'public')));
 
 const pool = new Pool({
-    connectionString: process.env.DATABASE_URL || 'postgresql://neondb_owner:YOUR_PASSWORD@ep-YOUR-HOST.aws.neon.tech/neondb?sslmode=require',
+    connectionString: process.env.DATABASE_URL || 'postgresql://neondb_owner:npg_gMTNKqx9r2Gu@ep-delicate-meadow-b373h7eq-pooler.c-4.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require',
     ssl: { rejectUnauthorized: false }
 });
 
