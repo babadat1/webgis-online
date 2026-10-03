@@ -13,8 +13,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 // ==========================================
 // CẤU HÌNH KẾT NỐI DATABASE POSTGRESQL ONLINE
 // ==========================================
+// Thay bằng connection string thực tế từ Neon của bạn nếu chưa đổi
 const pool = new Pool({
-    connectionString: 'postgresql://neondb_owner:npg_gMTNKqx9r2Gu@ep-delicate-meadow-b373h7eq-pooler.c-4.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require',
+    connectionString: process.env.DATABASE_URL || 'postgresql://neondb_owner:YOUR_PASSWORD@ep-YOUR-HOST.aws.neon.tech/neondb?sslmode=require',
     ssl: {
         rejectUnauthorized: false
     }
@@ -23,9 +24,9 @@ const pool = new Pool({
 // Kiểm tra kết nối DB
 pool.connect((err, client, release) => {
   if (err) {
-    return console.error('Lỗi kết nối CSDL (Hãy chắc chắn bạn đã cài PostgreSQL và tạo bảng):', err.stack);
+    return console.error('Lỗi kết nối CSDL (Hãy chắc chắn bạn đã cấu hình đúng link Neon):', err.stack);
   }
-  console.log('Đã kết nối thành công tới Database PostgreSQL!');
+  console.log('Đã kết nối thành công tới Database PostgreSQL (Neon)!');
   release();
 });
 
@@ -35,7 +36,6 @@ pool.connect((err, client, release) => {
 app.post('/api/save-feature', async (req, res) => {
     const { id, properties, geometry } = req.body;
     try {
-        // Lệnh UPSERT: Nếu thửa đất đã tồn tại (trùng id) thì cập nhật, chưa có thì thêm mới
         const query = `
             INSERT INTO geojson_features (feature_id, properties, geometry, updated_at)
             VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
@@ -60,7 +60,6 @@ app.get('/api/get-features', async (req, res) => {
     try {
         const result = await pool.query('SELECT feature_id, properties, geometry FROM geojson_features');
         
-        // Đóng gói lại thành chuẩn GeoJSON
         const geojson = {
             type: "FeatureCollection",
             features: result.rows.map(row => ({
@@ -77,9 +76,13 @@ app.get('/api/get-features', async (req, res) => {
     }
 });
 
-const PORT = 3000;
+// ==========================================
+// CẤU HÌNH PORT CHO RENDER.COM
+// ==========================================
+// Render.com yêu cầu dùng process.env.PORT, nếu chạy trên máy tính thì mặc định cổng 3000
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`=========================================`);
-    console.log(`Máy chủ WebGIS đang chạy tại: http://localhost:${PORT}`);
+    console.log(`Máy chủ WebGIS đang chạy tại PORT: ${PORT}`);
     console.log(`=========================================`);
 });

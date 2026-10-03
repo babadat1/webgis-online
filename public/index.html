@@ -3,21 +3,23 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebGIS - Lưu Database Online</title>
+    <title>WebGIS - Quản lý Đất đai & Thuộc tính</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; width: 100%; font-family: Arial, sans-serif; }
+        body, html { margin: 0; padding: 0; height: 100%; width: 100%; font-family: Arial, sans-serif; overflow: hidden; }
         #map { height: 100%; width: 100%; }
         
+        /* Menu điều khiển phía trên bên trái */
         .file-control {
             position: absolute; top: 10px; left: 60px; background: white;
             padding: 10px 15px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-            z-index: 1000; font-size: 14px; width: 220px;
+            z-index: 1000; font-size: 14px; width: 240px;
         }
         .file-control input { margin-top: 5px; width: 100%; }
 
+        /* Sidebar chỉnh sửa thuộc tính bên trái */
         .sidebar {
-            position: absolute; top: 155px; left: 10px; width: 320px; bottom: 20px;
+            position: absolute; top: 175px; left: 10px; width: 320px; bottom: 20px;
             background: white; border-radius: 5px; box-shadow: 0 2px 10px rgba(0,0,0,0.4);
             z-index: 1000; display: none; flex-direction: column;
         }
@@ -26,18 +28,39 @@
         .sidebar-content { padding: 15px; flex-grow: 1; overflow-y: auto; }
         .sidebar-footer { padding: 12px 15px; border-top: 1px solid #ddd; text-align: right; background-color: #f8f9fa; border-bottom-left-radius: 5px; border-bottom-right-radius: 5px; }
 
+        /* Nút và thành phần chung */
         .popup-content { font-size: 13px; max-height: 250px; overflow-y: auto; padding-right: 5px; min-width: 180px; }
         .popup-btn-container { margin-top: 8px; text-align: right; }
         .btn-custom { color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; margin-left: 4px; transition: 0.2s; }
         .btn-edit { background-color: #3498db; } .btn-edit:hover { background-color: #2980b9; }
         .btn-save { background-color: #2ecc71; } .btn-save:hover { background-color: #27ae60; }
         .btn-cancel { background-color: #e74c3c; } .btn-cancel:hover { background-color: #c0392b; }
-        .btn-db { background-color: #f39c12; width: 100%; margin-bottom: 10px; font-weight: bold; padding: 8px; font-size: 13px;} .btn-db:hover { background-color: #e67e22; }
+        .btn-db { background-color: #f39c12; width: 100%; margin-bottom: 8px; font-weight: bold; padding: 8px; font-size: 13px;} .btn-db:hover { background-color: #e67e22; }
+        .btn-table { background-color: #9b59b6; width: 100%; margin-bottom: 8px; font-weight: bold; padding: 8px; font-size: 13px;} .btn-table:hover { background-color: #8e44ad; }
         
         .edit-input { width: 100%; box-sizing: border-box; padding: 6px 8px; margin-bottom: 8px; font-size: 13px; border: 1px solid #ccc; border-radius: 3px; }
         .edit-label { font-size: 12px; color: #555; display: block; margin-bottom: 3px; font-weight: bold; }
         
-        #saving-status { display: none; color: #27ae60; font-weight: bold; font-size: 12px; margin-top: 5px; }
+        #saving-status { display: none; color: #27ae60; font-weight: bold; font-size: 12px; margin-top: 5px; text-align: center; }
+
+        /* Giao diện Bảng Thuộc Tính (Modal/Drawer phía dưới hoặc toàn màn hình) */
+        .table-modal {
+            position: absolute; bottom: 0; left: 0; right: 0; height: 45vh;
+            background: white; z-index: 2000; box-shadow: 0 -4px 15px rgba(0,0,0,0.3);
+            display: none; flex-direction: column; border-top-left-radius: 10px; border-top-right-radius: 10px;
+        }
+        .table-modal.active { display: flex; }
+        .table-header {
+            padding: 12px 20px; background: #2c3e50; color: white; font-weight: bold;
+            display: flex; justify-content: space-between; align-items: center;
+            border-top-left-radius: 10px; border-top-right-radius: 10px;
+        }
+        .table-close-btn { background: none; border: none; color: white; font-size: 18px; cursor: pointer; }
+        .table-body { padding: 15px; flex-grow: 1; overflow: auto; }
+        table.attribute-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        table.attribute-table th, table.attribute-table td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+        table.attribute-table th { background-color: #f2f2f2; position: sticky; top: 0; z-index: 1; }
+        table.attribute-table tr:hover { background-color: #f9f9f9; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -45,13 +68,14 @@
     <!-- Box Menu Điều Khiển -->
     <div class="file-control">
         <button id="loadDbBtn" class="btn-custom btn-db">Tải Dữ Liệu Từ Database</button>
-        <hr style="margin: 10px 0; border: 0; border-top: 1px solid #ddd;">
+        <button id="openTableBtn" class="btn-custom btn-table">Mở Bảng Thuộc Tính</button>
+        <hr style="margin: 8px 0; border: 0; border-top: 1px solid #ddd;">
         
-        <label for="geojsonFile"><b>Hoặc nhập file mới:</b></label>
+        <label for="geojsonFile"><b>Nhập file GeoJSON:</b></label>
         <input type="file" id="geojsonFile" accept=".geojson, .json" />
-        <hr style="margin: 10px 0; border: 0; border-top: 1px solid #ddd;">
+        <hr style="margin: 8px 0; border: 0; border-top: 1px solid #ddd;">
         
-        <button id="exportBtn" class="btn-custom btn-save" style="width: 100%; margin: 0; padding: 8px; font-weight: bold; font-size: 14px;">Xuất File (.geojson)</button>
+        <button id="exportBtn" class="btn-custom btn-save" style="width: 100%; margin: 0; padding: 7px; font-weight: bold; font-size: 13px;">Xuất File (.geojson)</button>
         <div id="saving-status">✓ Đã đồng bộ Database</div>
     </div>
 
@@ -60,6 +84,19 @@
         <div class="sidebar-header">Chỉnh sửa thuộc tính</div>
         <div id="sidebar-form" class="sidebar-content"></div>
         <div id="sidebar-footer" class="sidebar-footer"></div>
+    </div>
+
+    <!-- Bảng Thuộc Tính (Attribute Table Modal) -->
+    <div id="attributeModal" class="table-modal">
+        <div class="table-header">
+            <span>Danh sách Thửa đất & Thuộc tính (Quản lý Cadastre)</span>
+            <button class="table-close-btn" onclick="toggleAttributeTable()">✕</button>
+        </div>
+        <div class="table-body">
+            <table id="attrTableElement" class="attribute-table">
+                <!-- Dữ liệu bảng sẽ được load động bằng JavaScript -->
+            </table>
+        </div>
     </div>
 
     <!-- Khung chứa bản đồ -->
@@ -78,6 +115,7 @@
 
         var isEditMode = false;
         var currentEditing = null; 
+        const API_URL = window.location.origin;
 
         function escapeHtml(text) {
             if (text === null || text === undefined) return '';
@@ -96,18 +134,13 @@
             setTimeout(() => { status.style.display = 'none'; }, 2000);
         }
 
-        // =========================================================================
-        // HÀM LƯU DỮ LIỆU ĐANG SỬA (Cập nhật Local và gửi lên Database Online)
-        // =========================================================================
         function saveCurrentEdit() {
             if (currentEditing) {
-                // 1. Cập nhật Properties cục bộ
                 for (var key in currentEditing.inputs) {
                     currentEditing.feature.properties[key] = currentEditing.inputs[key].value;
                 }
 
-                // 2. GỬI DỮ LIỆU LÊN DATABASE
-                fetch('/api/save-feature', {
+                fetch(API_URL + '/api/save-feature', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -118,14 +151,10 @@
                 })
                 .then(res => res.json())
                 .then(data => {
-                    console.log("DB Update:", data.message);
                     showSaveStatus();
                 })
-                .catch(err => {
-                    console.error("Lỗi Database:", err);
-                });
+                .catch(err => { console.error("Lỗi Database:", err); });
 
-                // 3. Cập nhật giao diện
                 currentGeoJsonLayer.resetStyle(currentEditing.layer);
                 currentEditing.layer.bindPopup(createPopupContent(currentEditing.feature, currentEditing.layer));
             }
@@ -201,7 +230,99 @@
             return container;
         }
 
-        // HÀM HIỂN THỊ DỮ LIỆU LÊN BẢN ĐỒ DÙNG CHUNG (Cho cả Nhập File và Tải DB)
+        // --- XÂY DỰNG BẢNG THUỘC TÍNH (ATTRIBUTE TABLE) ---
+        function renderAttributeTable() {
+            var tableEl = document.getElementById('attrTableElement');
+            tableEl.innerHTML = '';
+            if (!currentGeoJsonLayer) return;
+
+            var features = [];
+            currentGeoJsonLayer.eachLayer(function(layer) {
+                if (layer.feature && layer.feature.properties) {
+                    features.push({ feature: layer.feature, layer: layer });
+                }
+            });
+
+            if (features.length === 0) return;
+
+            // Lấy danh sách cột từ properties của feature đầu tiên
+            var keys = Object.keys(features[0].feature.properties);
+
+            // Tạo tiêu đề bảng (Header)
+            var thead = document.createElement('thead');
+            var headerTr = document.createElement('tr');
+            var thAction = document.createElement('th');
+            thAction.innerText = "Hành động";
+            headerTr.appendChild(thAction);
+
+            keys.forEach(function(key) {
+                var th = document.createElement('th');
+                th.innerText = key;
+                headerTr.appendChild(th);
+            });
+            thead.appendChild(headerTr);
+            tableEl.appendChild(thead);
+
+            // Tạo các dòng dữ liệu (Rows)
+            var tbody = document.createElement('tbody');
+            features.forEach(function(item) {
+                var tr = document.createElement('tr');
+                
+                // Cột nút bấm zoom tới thửa trên bản đồ
+                var tdAction = document.createElement('td');
+                var zoomBtn = document.createElement('button');
+                zoomBtn.className = 'btn-custom btn-edit';
+                zoomBtn.innerText = 'Xem trên bản đồ';
+                zoomBtn.style.padding = '3px 8px';
+                zoomBtn.style.fontSize = '11px';
+                zoomBtn.onclick = function(e) {
+                    e.stopPropagation();
+                    toggleAttributeTable(); // Đóng bảng
+                    if (item.layer.getBounds) {
+                        map.fitBounds(item.layer.getBounds(), { maxZoom: 20 });
+                        item.layer.openPopup();
+                    }
+                };
+                tdAction.appendChild(zoomBtn);
+                tr.appendChild(tdAction);
+
+                // Các cột thuộc tính
+                keys.forEach(function(key) {
+                    var td = document.createElement('td');
+                    var val = item.feature.properties[key];
+                    td.innerText = val !== null && val !== undefined ? val : '';
+                    tr.appendChild(td);
+                });
+
+                // Click vào dòng trong bảng sẽ mở form sửa bên sidebar luôn
+                tr.onclick = function() {
+                    toggleAttributeTable();
+                    if (item.layer.getBounds) {
+                        map.fitBounds(item.layer.getBounds(), { maxZoom: 20 });
+                    }
+                    openSidebar(item.feature, item.layer);
+                };
+
+                tbody.appendChild(tr);
+            });
+            tableEl.appendChild(tbody);
+        }
+
+        function toggleAttributeTable() {
+            var modal = document.getElementById('attributeModal');
+            if (modal.classList.contains('active')) {
+                modal.classList.remove('active');
+            } else {
+                renderAttributeTable();
+                modal.classList.add('active');
+            }
+        }
+
+        document.getElementById('openTableBtn').addEventListener('click', function() {
+            toggleAttributeTable();
+        });
+
+        // HÀM HIỂN THỊ DỮ LIỆU LÊN BẢN ĐỒ
         function renderDataToMap(geojsondata, layerName) {
             if (currentGeoJsonLayer) {
                 map.removeLayer(currentGeoJsonLayer);
@@ -217,9 +338,9 @@
                     layer.on('click', function(e) {
                         if (isEditMode) {
                             if (currentEditing && currentEditing.layer === layer) return;
-                            saveCurrentEdit(); // Tự động lưu thửa cũ vào DB
+                            saveCurrentEdit(); 
                             map.closePopup();
-                            openSidebar(feature, layer); // Mở thửa mới
+                            openSidebar(feature, layer); 
                         }
                     });
                 }
@@ -232,7 +353,6 @@
             }
         }
 
-        // SỰ KIỆN: TẢI FILE TỪ MÁY
         document.getElementById('geojsonFile').addEventListener('change', function(e) {
             var file = e.target.files[0];
             if (!file) return;
@@ -246,12 +366,9 @@
             reader.readAsText(file);
         });
 
-        // =========================================================================
-        // SỰ KIỆN: TẢI DỮ LIỆU TỪ DATABASE
-        // =========================================================================
         document.getElementById('loadDbBtn').addEventListener('click', function() {
             closeSidebar();
-            fetch('/api/get-features')
+            fetch(API_URL + '/api/get-features')
                 .then(res => res.json())
                 .then(data => {
                     if(data.features && data.features.length > 0) {
@@ -266,7 +383,6 @@
                 });
         });
 
-        // SỰ KIỆN: XUẤT FILE GEOJSON
         document.getElementById('exportBtn').addEventListener('click', function() {
             if (!currentGeoJsonLayer) { alert("Chưa có dữ liệu để xuất!"); return; }
             if (isEditMode) { saveCurrentEdit(); closeSidebar(); }
