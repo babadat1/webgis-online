@@ -58,9 +58,13 @@
         table.attribute-table th, table.attribute-table td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
         table.attribute-table th { background-color: #f2f2f2; position: sticky; top: 0; z-index: 1; }
         table.attribute-table tr:hover { background-color: #f9f9f9; cursor: pointer; }
+        
+        #loading-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.8); z-index: 3000; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 18px; color: #2c3e50; display: none; }
     </style>
 </head>
 <body>
+
+    <div id="loading-overlay">Đang đồng bộ dữ liệu... Vui lòng chờ ⏳</div>
 
     <div class="file-control">
         <button id="loadDbBtn" class="btn-custom btn-db">Tải Dữ Liệu Từ Database</button>
@@ -68,7 +72,7 @@
         <a href="report.html" class="btn-custom btn-report" target="_blank">Trang Báo Cáo Thống Kê 📊</a>
         <hr style="margin: 6px 0; border: 0; border-top: 1px solid #ddd;">
         
-        <label for="geojsonFile"><b>Nhập file GeoJSON:</b></label>
+        <label for="geojsonFile"><b>Nhập file (Tự động lưu DB):</b></label>
         <input type="file" id="geojsonFile" accept=".geojson, .json" />
         <hr style="margin: 6px 0; border: 0; border-top: 1px solid #ddd;">
         
@@ -109,7 +113,11 @@
         var currentEditing = null; 
         const API_URL = window.location.origin;
 
-        // Lưu dữ liệu vào localStorage để trang báo cáo có thể đọc trực tiếp bất cứ lúc nào
+        // --- TÍNH NĂNG TỰ ĐỘNG LẤY DỮ LIỆU KHI MỞ WEB ---
+        window.onload = function() {
+            document.getElementById('loadDbBtn').click();
+        };
+
         function saveToLocalStorageCache(geojson) {
             localStorage.setItem('webgis_cache_data', JSON.stringify(geojson));
         }
@@ -125,10 +133,11 @@
             currentEditing = null;
         }
 
-        function showSaveStatus() {
+        function showSaveStatus(msg) {
             var status = document.getElementById('saving-status');
+            if(msg) status.innerText = msg;
             status.style.display = 'block';
-            setTimeout(() => { status.style.display = 'none'; }, 2000);
+            setTimeout(() => { status.style.display = 'none'; }, 3000);
         }
 
         function saveCurrentEdit() {
@@ -148,7 +157,7 @@
                 })
                 .then(res => res.json())
                 .then(data => {
-                    showSaveStatus();
+                    showSaveStatus("✓ Đã đồng bộ sửa đổi");
                     if (currentGeoJsonLayer) {
                         saveToLocalStorageCache(currentGeoJsonLayer.toGeoJSON());
                     }
@@ -346,33 +355,74 @@
             saveToLocalStorageCache(geojsondata);
         }
 
+        // --- TÍNH NĂNG UPLOAD ĐỒNG BỘ LÊN SERVER ---
         document.getElementById('geojsonFile').addEventListener('change', function(e) {
             var file = e.target.files[0];
             if (!file) return;
             closeSidebar();
             var reader = new FileReader();
+            
+            document.getElementById('loading-overlay').style.display = 'flex';
+
             reader.onload = function(event) {
                 try {
-                    renderDataToMap(JSON.parse(event.target.result), file.name);
-                } catch (err) { alert("Lỗi đọc file GeoJSON!"); }
+                    var geojson = JSON.parse(event.target.result);
+                    
+                    // Gắn id nếu chưa có
+                    geojson.features.forEach(f => {
+                        if(!f.id) f.id = 'feat_' + Math.random().toString(36).substr(2, 9);
+                    });
+
+                    // 1. Gửi thẳng lên Database
+                    fetch(API_URL + '/api/upload-features', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ features: geojson.features })
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        document.getElementById('loading-overlay').style.display = 'none';
+                        if(data.success) {
+                            alert(data.message + "\nLần sau bạn không cần tải lại file này nữa!");
+                            // 2. Hiển thị lên Map
+                            renderDataToMap(geojson, file.name);
+                        } else {
+                            alert("Lỗi lưu DB: " + data.error);
+                        }
+                    })
+                    .catch(err => {
+                        document.getElementById('loading-overlay').style.display = 'none';
+                        alert("Lỗi mạng khi tải lên DB!");
+                        console.error(err);
+                    });
+
+                } catch (err) { 
+                    document.getElementById('loading-overlay').style.display = 'none';
+                    alert("Lỗi đọc file GeoJSON!"); 
+                }
             };
             reader.readAsText(file);
         });
 
         document.getElementById('loadDbBtn').addEventListener('click', function() {
             closeSidebar();
+            
+            // Đổi text thành đang tải
+            let originalText = this.innerText;
+            this.innerText = "Đang tải...";
+            
             fetch(API_URL + '/api/get-features')
                 .then(res => res.json())
                 .then(data => {
+                    this.innerText = originalText;
                     if(data.features && data.features.length > 0) {
-                        renderDataToMap(data, "Dữ liệu Database");
-                    } else {
-                        alert("Database hiện chưa có dữ liệu nào!");
+                        renderDataToMap(data, "Dữ liệu Database chung");
+                        showSaveStatus("✓ Đã cập nhật bản đồ mới nhất");
                     }
                 })
                 .catch(err => {
+                    this.innerText = originalText;
                     console.error("Lỗi tải DB:", err);
-                    alert("Chưa kết nối được với Server Database!");
                 });
         });
 
