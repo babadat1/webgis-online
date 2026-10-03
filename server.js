@@ -9,15 +9,99 @@ app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ limit: '100mb', extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
+const dbUrl = process.env.DATABASE_URL || 'postgresql://neondb_owner:npg_gMTNKqx9r2Gu@ep-delicate-meadow-b373h7eq-pooler.c-4.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require';
+
 const pool = new Pool({
-    connectionString: process.env.DATABASE_URL || 'postgresql://neondb_owner:npg_gMTNKqx9r2Gu@ep-delicate-meadow-b373h7eq-pooler.c-4.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require',
+    connectionString: dbUrl,
     ssl: { rejectUnauthorized: false }
 });
 
-pool.connect((err, client, release) => {
-  if (err) return console.error('Lỗi kết nối CSDL:', err.stack);
-  console.log('Đã kết nối thành công tới Database PostgreSQL!');
-  release();
+// Khởi tạo bảng dữ liệu và bảng users khi khởi động server
+async function initDB() {
+    try {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS geojson_features (
+                feature_id VARCHAR(100) PRIMARY KEY,
+                properties JSONB,
+                geometry JSONB,
+                project_name VARCHAR(255),
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            ALTER TABLE geojson_features ADD COLUMN IF NOT EXISTS project_name VARCHAR(255);
+
+            CREATE TABLE IF NOT EXISTS users (
+                username VARCHAR(50) PRIMARY KEY,
+                password VARCHAR(100) NOT NULL,
+                role VARCHAR(20) NOT NULL
+            );
+        `);
+
+        // Kiểm tra nếu chưa có user nào thì tạo mặc định
+        const res = await pool.query('SELECT COUNT(*) FROM users');
+        if (parseInt(res.rows[0].count) === 0) {
+            await pool.query("INSERT INTO users (username, password, role) VALUES ('admin', 'admin123', 'admin')");
+            await pool.query("INSERT INTO users (username, password, role) VALUES ('khach', 'khach123', 'guest')");
+            console.log("Đã khởi tạo tài khoản mặc định (admin & khach).");
+        }
+        console.log("Đã kết nối và khởi tạo CSDL thành công!");
+    } catch (err) {
+        console.error("Lỗi khởi tạo CSDL:", err);
+    }
+}
+
+initDB();
+
+// API: Đăng nhập
+app.post('/api/login', async (req, res) => {
+    const { username, password } = req.body;
+    try {
+        const result = await pool.query('SELECT * FROM users WHERE username = $1 AND password = $2', [username, password]);
+        if (result.rows.length > 0) {
+            const user = result.rows[0];
+            res.json({ success: true, role: user.role, username: user.username, message: 'Đăng nhập thành công!' });
+        } else {
+            res.status(401).json({ success: false, message: 'Sai tên tài khoản hoặc mật khẩu!' });
+        }
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// API: Lấy danh sách tài khoản (Dành cho Admin quản lý)
+app.get('/api/users', async (req, res) => {
+    try {
+        const result = await pool.query('SELECT username, password, role FROM users');
+        res.json({ success: true, users: result.rows });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// API: Cập nhật tài khoản (Admin đổi tên/mật khẩu)
+app.put('/api/update-user', async (req, res) => {
+    const { oldUsername, newUsername, newPassword, role } = req.body;
+    try {
+        // Kiểm tra xem tên mới có bị trùng không nếu đổi tên
+        if (oldUsername !== newUsername) {
+            const check = await pool.query('SELECT * FROM users WHERE username = $1', [newUsername]);
+            if (check.rows.length > 0) {
+                return.status(400).json({ success: false, message: 'Tên tài khoản mới đã tồn tại!' });
+            }
+        }
+        
+        // Cập nhật thông tin user trong DB (hoặc tạo mới nếu chưa có theo role)
+        const updateQuery = `
+            UPDATE users SET username = $1, password = $2 WHERE role = $3;
+        `;
+        const result = await pool.query(updateQuery, [newUsername, newPassword, role]);
+        if (result.rowCount === 0) {
+            // Nếu chưa có dòng theo role đó, insert mới
+            await pool.query('INSERT INTO users (username, password, role) VALUES ($1, $2, $3)', [newUsername, newPassword, role]);
+        }
+        res.json({ success: true, message: 'Cập nhật tài khoản thành công!' });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
 });
 
 // API: Lấy danh sách các Dự án hiện có
@@ -130,18 +214,6 @@ app.get('/api/get-features', async (req, res) => {
         res.json(geojson);
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
-    }
-});
-
-// API: Đăng nhập
-app.post('/api/login', (req, res) => {
-    const { username, password } = req.body;
-    if (username === 'admin' && password === 'admin123') {
-        return res.json({ success: true, role: 'admin', message: 'Đăng nhập Admin thành công!' });
-    } else if (username === 'khach' && password === 'khach123') {
-        return res.json({ success: true, role: 'guest', message: 'Đăng nhập Khách thành công!' });
-    } else {
-        return res.status(401).json({ success: false, message: 'Sai tên tài khoản hoặc mật khẩu!' });
     }
 });
 

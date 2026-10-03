@@ -41,6 +41,7 @@
         .btn-db { background-color: #f39c12; width: 100%; margin-bottom: 6px; font-weight: bold; padding: 7px; font-size: 13px;} .btn-db:hover { background-color: #e67e22; }
         .btn-table { background-color: #9b59b6; width: 100%; margin-bottom: 6px; font-weight: bold; padding: 7px; font-size: 13px;} .btn-table:hover { background-color: #8e44ad; }
         .btn-report { background-color: #1abc9c; width: 100%; margin-bottom: 6px; font-weight: bold; padding: 7px; font-size: 13px; text-decoration: none; display: block; text-align: center; box-sizing: border-box;} .btn-report:hover { background-color: #16a085; }
+        .btn-users { background-color: #34495e; width: 100%; margin-bottom: 6px; font-weight: bold; padding: 7px; font-size: 13px; display: none; } .btn-users:hover { background-color: #2c3e50; }
         
         .edit-input { width: 100%; box-sizing: border-box; padding: 6px 8px; margin-bottom: 8px; font-size: 13px; border: 1px solid #ccc; border-radius: 3px; }
         .edit-label { font-size: 12px; color: #555; display: block; margin-bottom: 3px; font-weight: bold; }
@@ -72,7 +73,11 @@
         .role-badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; color: white; margin-bottom: 10px; }
         .role-admin { background-color: #e74c3c; }
         .role-guest { background-color: #3498db; }
-</style>
+
+        /* Modal Quản lý tài khoản */
+        #userModal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 4000; display: none; justify-content: center; align-items: center; }
+        .user-modal-box { background: white; padding: 25px; border-radius: 8px; width: 380px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+    </style>
 </head>
 <body>
     <!-- Màn hình Đăng nhập -->
@@ -89,8 +94,32 @@
             </div>
             <button id="loginBtn" class="btn-custom btn-save" style="width:100%; padding:10px; font-size:14px; font-weight:bold;">ĐĂNG NHẬP</button>
             <div id="login-error" style="color:#e74c3c; font-size:13px; margin-top:10px; text-align:center; display:none; font-weight:bold;"></div>
-            
+        </div>
+    </div>
 
+    <!-- Modal Quản lý Tài khoản (Chỉ Admin) -->
+    <div id="userModal">
+        <div class="user-modal-box">
+            <h3 style="margin-top:0; color:#2c3e50; text-align:center;">Quản lý tài khoản hệ thống</h3>
+            <div style="margin-bottom:15px;">
+                <label class="edit-label">Chọn tài khoản cần sửa:</label>
+                <select id="targetRole" class="edit-input" onchange="loadTargetUser()">
+                    <option value="admin">Tài khoản Admin</option>
+                    <option value="guest">Tài khoản Khách</option>
+                </select>
+            </div>
+            <div style="margin-bottom:12px;">
+                <label class="edit-label">Tên tài khoản mới:</label>
+                <input type="text" id="editUsername" class="edit-input" placeholder="Tên đăng nhập...">
+            </div>
+            <div style="margin-bottom:15px;">
+                <label class="edit-label">Mật khẩu mới:</label>
+                <input type="text" id="editPassword" class="edit-input" placeholder="Mật khẩu mới...">
+            </div>
+            <div style="display:flex; gap:10px;">
+                <button class="btn-custom btn-save" style="flex:1; padding:8px;" onclick="saveUserChanges()">Lưu thay đổi</button>
+                <button class="btn-custom btn-cancel" style="flex:1; padding:8px;" onclick="closeUserModal()">Đóng</button>
+            </div>
         </div>
     </div>
     
@@ -119,6 +148,7 @@
 
         <button id="openTableBtn" class="btn-custom btn-table">Mở Bảng Thuộc Tính</button>
         <a href="report.html" class="btn-custom btn-report" target="_blank">Trang Báo Cáo Thống Kê 📊</a>
+        <button id="manageUsersBtn" class="btn-custom btn-users" onclick="openUserModal()">⚙️ Quản lý Tài khoản</button>
         
         <hr style="margin: 8px 0; border: 0; border-top: 1px solid #ddd;">
         <button id="exportBtn" class="btn-custom btn-save" style="width: 100%; margin: 0; padding: 7px; font-weight: bold; font-size: 13px;">Xuất File (.geojson)</button>
@@ -147,12 +177,10 @@
     <script>
         var map = L.map('map', { center: [10.7769, 106.7009], zoom: 13, maxZoom: 22 });
         
-        // 1. Các lớp nền (Base Maps - Nút tròn)
         var googleRoad = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', { maxZoom: 22, subdomains: ['mt0', 'mt1', 'mt2', 'mt3']});
         var googleSat = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', { maxZoom: 22, subdomains: ['mt0', 'mt1', 'mt2', 'mt3']});
-        var googleHybrid = L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { maxZoom: 22, subdomains: ['mt0', 'mt1', 'mt2', 'mt3']}).addTo(map); // Mặc định mở lớp Hỗn hợp
+        var googleHybrid = L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { maxZoom: 22, subdomains: ['mt0', 'mt1', 'mt2', 'mt3']}).addTo(map);
         
-        // 2. Lớp phủ giao thông trong suốt (Overlay - Nút vuông)
         var googleLabels = L.tileLayer('https://{s}.google.com/vt/lyrs=h&x={x}&y={y}&z={z}', { maxZoom: 22, subdomains: ['mt0', 'mt1', 'mt2', 'mt3']});
 
         var baseMaps = {
@@ -171,25 +199,21 @@
         var isEditMode = false;
         var currentEditing = null; 
         const API_URL = window.location.origin;
-        var currentActiveProject = ""; // Lưu tên dự án đang xem
-        var currentUserRole = null; // Biến lưu quyền người dùng (admin/guest)
+        var currentActiveProject = ""; 
+        var currentUserRole = null; 
+        var systemUsersData = [];
         
-        // Cấu hình giao diện Highlight
         var highlightedLayer = null;
-        var defaultStyle = { color: "#3498db", weight: 2, fillColor: "#3498db", fillOpacity: 0.4 }; // Mặc định màu Xanh dương
-        var highlightStyle = { color: "#e74c3c", weight: 4, fillColor: "#e74c3c", fillOpacity: 0.7 }; // Khi click vào thành Đỏ rực
+        var defaultStyle = { color: "#3498db", weight: 2, fillColor: "#3498db", fillOpacity: 0.4 };
+        var highlightStyle = { color: "#e74c3c", weight: 4, fillColor: "#e74c3c", fillOpacity: 0.7 };
 
         function highlightFeature(layer) {
-            // Xóa highlight của lớp cũ nếu có
             if (highlightedLayer && currentGeoJsonLayer) {
                 currentGeoJsonLayer.resetStyle(highlightedLayer);
             }
             highlightedLayer = layer;
-            
-            // Tô đỏ lớp mới
             if (layer.setStyle) {
                 layer.setStyle(highlightStyle);
-                // Đẩy lớp được chọn nổi lên trên cùng để không bị lớp khác che khuất
                 if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
                     layer.bringToFront();
                 }
@@ -202,7 +226,6 @@
         }
         function hideLoading() { document.getElementById('loading-overlay').style.display = 'none'; }
 
-        // --- HỆ THỐNG QUẢN LÝ DỰ ÁN ---
         function loadProjectList() {
             fetch(API_URL + '/api/projects')
                 .then(res => res.json())
@@ -247,8 +270,8 @@
                 if(data.success) {
                     currentUserRole = data.role;
                     document.getElementById('login-overlay').style.display = 'none';
-                    applyPermissions(); // Áp dụng quyền
-                    loadProjectList(); // Tải danh sách dự án
+                    applyPermissions(); 
+                    loadProjectList(); 
                 } else {
                     err.innerText = data.message; err.style.display = 'block';
                 }
@@ -258,19 +281,75 @@
             });
         });
 
-        // Hàm ẩn các công cụ chỉnh sửa nếu là Khách
+        // Tải danh sách user để quản lý
+        function fetchSystemUsers() {
+            fetch(API_URL + '/api/users')
+                .then(res => res.json())
+                .then(data => {
+                    if(data.success) {
+                        systemUsersData = data.users;
+                        loadTargetUser();
+                    }
+                });
+        }
+
+        function openUserModal() {
+            fetchSystemUsers();
+            document.getElementById('userModal').style.display = 'flex';
+        }
+
+        function closeUserModal() {
+            document.getElementById('userModal').style.display = 'none';
+        }
+
+        function loadTargetUser() {
+            let targetRole = document.getElementById('targetRole').value;
+            let user = systemUsersData.find(u => u.role === targetRole);
+            if(user) {
+                document.getElementById('editUsername').value = user.username;
+                document.getElementById('editPassword').value = user.password;
+            } else {
+                document.getElementById('editUsername').value = "";
+                document.getElementById('editPassword').value = "";
+            }
+        }
+
+        function saveUserChanges() {
+            let targetRole = document.getElementById('targetRole').value;
+            let newU = document.getElementById('editUsername').value;
+            let newP = document.getElementById('editPassword').value;
+            let currentUserObj = systemUsersData.find(u => u.role === targetRole);
+            let oldU = currentUserObj ? currentUserObj.username : targetRole;
+
+            if(!newU || !newP) return alert("Vui lòng nhập đầy đủ thông tin tài khoản và mật khẩu!");
+
+            fetch(API_URL + '/api/update-user', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ oldUsername: oldU, newUsername: newU, newPassword: newP, role: targetRole })
+            }).then(res => res.json()).then(data => {
+                if(data.success) {
+                    alert(data.message);
+                    closeUserModal();
+                    fetchSystemUsers();
+                } else {
+                    alert("Lỗi: " + data.message);
+                }
+            });
+        }
+
         function applyPermissions() {
             if (currentUserRole === 'guest') {
-                document.getElementById('delProjectBtn').style.display = 'none'; // Ẩn nút xóa dự án
-                document.getElementById('upload-section').style.display = 'none'; // Ẩn khu tải file mới
+                document.getElementById('delProjectBtn').style.display = 'none'; 
+                document.getElementById('upload-section').style.display = 'none'; 
+                document.getElementById('manageUsersBtn').style.display = 'none';
                 
-                // Hiển thị huy hiệu Khách
                 let badge = document.createElement('div');
                 badge.className = 'role-badge role-guest';
                 badge.innerText = '👤 Khách (Chỉ xem)';
                 document.querySelector('.file-control').insertBefore(badge, document.querySelector('.project-group'));
             } else if (currentUserRole === 'admin') {
-                // Hiển thị huy hiệu Admin
+                document.getElementById('manageUsersBtn').style.display = 'block';
                 let badge = document.createElement('div');
                 badge.className = 'role-badge role-admin';
                 badge.innerText = '👑 Admin (Toàn quyền)';
@@ -278,16 +357,12 @@
             }
         }
         
-        // Không tự động load nữa, chờ đăng nhập thành công mới load
-        window.onload = function() { 
-            // Khởi tạo không làm gì cả, chờ login
-        };
+        window.onload = function() { };
 
-        // Xóa dự án
         document.getElementById('delProjectBtn').addEventListener('click', function() {
             let p = document.getElementById('projectSelect').value;
             if(!p) return alert("Vui lòng chọn dự án cần xóa!");
-            if(confirm(`Bạn có chắc muốn XÓA TOÀN BỘ dữ liệu của dự án [${p}]? Hành động này không thể hoàn tác!`)) {
+            if(confirm(`Bạn có chắc muốn XÓA TOÀN BỘ dữ liệu của dự án [${p}]?`)) {
                 showLoading("Đang xóa dự án...");
                 fetch(API_URL + '/api/delete-project/' + encodeURIComponent(p), { method: 'DELETE' })
                     .then(res => res.json())
@@ -303,7 +378,6 @@
             }
         });
 
-        // Đổi Project -> Tự load map
         document.getElementById('projectSelect').addEventListener('change', function() {
             if(this.value) document.getElementById('loadDbBtn').click();
         });
@@ -336,7 +410,6 @@
             }
         }
 
-        // --- CÁC HÀM UI ---
         function openSidebar(feature, layer) {
             var sidebar = document.getElementById('edit-sidebar');
             var formDiv = document.getElementById('sidebar-form');
@@ -362,7 +435,6 @@
             var html = "";
             for (var key in feature.properties) html += "<b>" + escapeHtml(key) + ":</b> " + escapeHtml(feature.properties[key]) + "<br>";
             propsDiv.innerHTML = html; container.appendChild(propsDiv);
-            // Chỉ hiện nút "Sửa" nếu là Admin
             if (currentUserRole === 'admin') {
                 var btnContainer = document.createElement('div'); btnContainer.className = 'popup-btn-container';
                 var editBtn = document.createElement('button'); editBtn.className = 'btn-custom btn-edit'; editBtn.innerText = 'Sửa';
@@ -417,12 +489,9 @@
             saveToLocalStorageCache(geojsondata);
         }
 
-        // --- KẾT NỐI API THÊM DỰ ÁN MỚI ---
         document.getElementById('geojsonFile').addEventListener('change', function(e) {
             var file = e.target.files[0];
             if (!file) return;
-            
-            // Lấy tên file (bỏ đuôi .geojson) làm tên dự án
             var pName = file.name.replace(/\.[^/.]+$/, "");
             closeSidebar();
             var reader = new FileReader();
@@ -441,10 +510,10 @@
                         hideLoading();
                         if(data.success) {
                             alert(data.message);
-                            loadProjectList(); // Cập nhật lại dropdown list
+                            loadProjectList(); 
                             setTimeout(() => {
                                 document.getElementById('projectSelect').value = pName;
-                                document.getElementById('loadDbBtn').click(); // Tự tải lại map
+                                document.getElementById('loadDbBtn').click(); 
                             }, 500);
                         } else alert("Lỗi lưu DB: " + data.error);
                     });
@@ -453,7 +522,6 @@
             reader.readAsText(file);
         });
 
-        // --- KẾT NỐI API TẢI DỮ LIỆU THEO DỰ ÁN ---
         document.getElementById('loadDbBtn').addEventListener('click', function() {
             closeSidebar();
             let pName = document.getElementById('projectSelect').value;
@@ -479,7 +547,11 @@
                 }).catch(err => { hideLoading(); console.error(err); });
         });
 
+        // Chặn tài khoản khách dùng nút Xuất File
         document.getElementById('exportBtn').addEventListener('click', function() {
+            if (currentUserRole !== 'admin') {
+                return alert("Tài khoản khách không có quyền xuất file!");
+            }
             if (!currentGeoJsonLayer) return alert("Chưa có dữ liệu để xuất!");
             if (isEditMode) { saveCurrentEdit(); closeSidebar(); }
             var blob = new Blob([JSON.stringify(currentGeoJsonLayer.toGeoJSON(), null, 2)], { type: "application/geo+json" });
