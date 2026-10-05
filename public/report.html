@@ -59,6 +59,29 @@
         .dropdown-content label:last-child { margin-bottom: 0; }
         .dropdown-content input[type="checkbox"] { cursor: pointer; width: 16px; height: 16px; }
 
+        .editable-title {
+            margin-top: 15px; 
+            font-weight: bold; 
+            font-size: 14px; 
+            text-align: center; 
+            padding: 5px 10px; 
+            border: 1px dashed transparent; 
+            outline: none; 
+            color: #2c3e50; 
+            cursor: text; 
+            border-radius: 4px;
+            transition: 0.2s;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .editable-title:hover {
+            border-color: #bdc3c7;
+        }
+        .editable-title:focus {
+            border-color: #3498db;
+            background-color: #f4f9fd;
+        }
+
         @media print {
             body { background-color: white; padding: 0; }
             .container { box-shadow: none; border: none; max-width: 100%; padding: 0; }
@@ -67,6 +90,7 @@
             .box { break-inside: avoid; border: none; }
             .box-header { border: 1px solid #eee; }
             table { border: 1px solid #ccc; }
+            .editable-title { border: none !important; background: transparent !important; margin-top: 5px; }
         }
     </style>
 </head>
@@ -119,25 +143,24 @@
     <div class="content-grid">
         <div class="box">
             <div class="box-header">Biểu đồ tỷ lệ phân bổ</div>
-            <div class="box-body" style="display: flex; justify-content: center; align-items: center; min-height: 300px;">
-                <canvas id="myPieChart"></canvas>
+            <div class="box-body" id="chartsContainer" style="display: flex; justify-content: center; align-items: center; min-height: 300px; flex-wrap: wrap; gap: 20px; padding: 20px;">
+                <div style="color:#7f8c8d; text-align:center; width:100%;">Vui lòng bấm "Tạo Báo Cáo" để xem biểu đồ</div>
             </div>
         </div>
 
         <div class="box">
             <div class="box-header">
                 <span>Bảng số liệu chi tiết</span>
-                <!-- Nút cấu hình hiển thị cột % -->
                 <div class="dropdown" id="colSettingsDropdown">
                     <button class="dropdown-btn" onclick="toggleDropdown(event)">⚙️ Tùy chọn <span>▼</span></button>
                     <div class="dropdown-content" id="colSettingsMenu">
-                        <div style="font-weight: bold; margin-bottom: 10px; font-size: 12px; color: #7f8c8d; border-bottom: 1px solid #eee; padding-bottom: 5px;">HIỂN THỊ CỘT TỶ LỆ (%)</div>
+                        <div style="font-weight: bold; margin-bottom: 10px; font-size: 12px; color: #7f8c8d; border-bottom: 1px solid #eee; padding-bottom: 5px;">CHỌN DỮ LIỆU TÍNH TỶ LỆ (%)</div>
                         <label>
-                            <input type="checkbox" id="chkShowPctCount" checked onchange="renderTable()"> 
+                            <input type="checkbox" id="chkShowPctCount" checked onchange="updateReportView()"> 
                             Tỷ lệ % theo Số lượng
                         </label>
                         <label>
-                            <input type="checkbox" id="chkShowPctArea" checked onchange="renderTable()"> 
+                            <input type="checkbox" id="chkShowPctArea" checked onchange="updateReportView()"> 
                             Tỷ lệ % theo Diện tích
                         </label>
                     </div>
@@ -147,7 +170,6 @@
                 <table id="reportTable">
                     <thead>
                         <tr id="tableHeaderRow">
-                            <!-- Header render by JS -->
                         </tr>
                     </thead>
                     <tbody id="tableBody">
@@ -161,18 +183,16 @@
 
 <script>
     let geojsonData = null;
-    let myChart = null;
-    let reportData = []; // Mảng lưu trữ dữ liệu đã tính toán để render table
+    let chartInstances = [];
+    let reportData = []; 
     let globalTotalFeatures = 0;
     let globalTotalArea = 0;
 
-    // Xử lý ẩn/hiện menu Dropdown
     function toggleDropdown(e) {
         document.getElementById("colSettingsMenu").classList.toggle("show");
         e.stopPropagation();
     }
 
-    // Đóng dropdown khi click ra ngoài
     window.onclick = function(event) {
         if (!event.target.closest('.dropdown')) {
             var dropdowns = document.getElementsByClassName("dropdown-content");
@@ -185,7 +205,6 @@
         }
     }
 
-    // Khởi tạo trang
     window.onload = function() {
         let cachedData = localStorage.getItem('webgis_cache_data');
         if (cachedData) {
@@ -249,7 +268,6 @@
             globalTotalArea += aVal;
         });
 
-        // Chuyển object summary thành mảng reportData để dễ render và sắp xếp
         reportData = [];
         for (let key in summary) {
             reportData.push({
@@ -259,20 +277,21 @@
             });
         }
         
-        // Sắp xếp mảng theo số lượng giảm dần
         reportData.sort((a, b) => b.count - a.count);
 
-        // Cập nhật thẻ Summary
         document.getElementById('valTotalFeatures').innerText = globalTotalFeatures;
         document.getElementById('valTotalGroups').innerText = reportData.length;
         document.getElementById('valTotalArea').innerText = globalTotalArea > 0 ? 
             globalTotalArea.toLocaleString('vi-VN', {maximumFractionDigits: 2}) + ' m²' : '0 m²';
 
-        renderTable();
-        renderChart();
+        updateReportView();
     }
 
-    // Hàm render động bảng số liệu dựa trên các checkbox cài đặt
+    function updateReportView() {
+        renderTable();
+        renderCharts();
+    }
+
     function renderTable() {
         if (reportData.length === 0) return;
 
@@ -280,7 +299,6 @@
         let showPctArea = document.getElementById('chkShowPctArea').checked;
         let hasArea = document.getElementById('areaColSelect').value !== "";
 
-        // 1. Tạo Header
         let thHtml = `
             <th>STT</th>
             <th>Nhóm phân loại</th>
@@ -291,7 +309,6 @@
         `;
         document.getElementById('tableHeaderRow').innerHTML = thHtml;
 
-        // 2. Tạo Body
         let tbHtml = '';
         reportData.forEach((item, index) => {
             let pctCount = globalTotalFeatures > 0 ? ((item.count / globalTotalFeatures) * 100).toFixed(2) : 0;
@@ -307,7 +324,6 @@
             </tr>`;
         });
 
-        // 3. Tạo Dòng Tổng Cộng
         tbHtml += `<tr class="total-row">
             <td colspan="2" style="text-align: right;">TỔNG CỘNG:</td>
             <td>${globalTotalFeatures}</td>
@@ -319,36 +335,82 @@
         document.getElementById('tableBody').innerHTML = tbHtml;
     }
 
-    // Hàm vẽ biểu đồ
-    function renderChart() {
-        let labels = reportData.map(item => item.name);
-        let data = reportData.map(item => item.count);
+    function renderCharts() {
+        let showPctCount = document.getElementById('chkShowPctCount').checked;
+        let showPctArea = document.getElementById('chkShowPctArea').checked;
+        let hasArea = document.getElementById('areaColSelect').value !== "";
         let groupCol = document.getElementById('groupColSelect').value;
 
-        let ctx = document.getElementById('myPieChart').getContext('2d');
-        if (myChart) { myChart.destroy(); }
+        let container = document.getElementById('chartsContainer');
+        container.innerHTML = '';
+        
+        chartInstances.forEach(c => c.destroy());
+        chartInstances = [];
 
-        myChart = new Chart(ctx, {
-            type: 'pie',
-            data: {
-                labels: labels,
-                datasets: [{
-                    data: data,
-                    backgroundColor: [
-                        '#3498db', '#2ecc71', '#9b59b6', '#f1c40f', '#e67e22', 
-                        '#e74c3c', '#1abc9c', '#34495e', '#7f8c8d', '#d35400'
-                    ]
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { position: 'bottom' },
-                    title: { display: true, text: `Phân bổ theo: ${groupCol}` }
+        if (reportData.length === 0) {
+            container.innerHTML = '<div style="color:#7f8c8d; text-align:center; width:100%;">Chưa có dữ liệu để vẽ biểu đồ</div>';
+            return;
+        }
+
+        let labels = reportData.map(item => item.name);
+        let countData = reportData.map(item => item.count);
+        let areaData = reportData.map(item => item.area);
+        let colors = ['#3498db', '#2ecc71', '#9b59b6', '#f1c40f', '#e67e22', '#e74c3c', '#1abc9c', '#34495e', '#7f8c8d', '#d35400'];
+
+        function createChartElement(id, defaultTitle, dataArr) {
+            let wrapper = document.createElement('div');
+            wrapper.style.cssText = "flex: 1; min-width: 250px; max-width: 400px; display: flex; flex-direction: column; align-items: center;";
+            
+            let canvasContainer = document.createElement('div');
+            canvasContainer.style.cssText = "position: relative; height: 280px; width: 100%;";
+            
+            let canvas = document.createElement('canvas');
+            canvas.id = id;
+            canvasContainer.appendChild(canvas);
+            
+            let titleDiv = document.createElement('div');
+            titleDiv.contentEditable = "true";
+            titleDiv.innerText = defaultTitle;
+            titleDiv.className = "editable-title";
+            titleDiv.title = "Nhấp vào đây để sửa tên biểu đồ";
+            
+            wrapper.appendChild(canvasContainer);
+            wrapper.appendChild(titleDiv);
+            container.appendChild(wrapper);
+            
+            let ctx = canvas.getContext('2d');
+            let chart = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: dataArr,
+                        backgroundColor: colors
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom' },
+                        title: { display: false }
+                    }
                 }
-            }
-        });
+            });
+            chartInstances.push(chart);
+        }
+
+        if (showPctCount) {
+            createChartElement('chartCount', `Biểu đồ tỷ lệ Số lượng (${groupCol})`, countData);
+        }
+        
+        if (showPctArea && hasArea) {
+            createChartElement('chartArea', `Biểu đồ tỷ lệ Diện tích (${groupCol})`, areaData);
+        }
+        
+        if (!showPctCount && !(showPctArea && hasArea)) {
+            container.innerHTML = '<div style="color:#7f8c8d; text-align:center; width:100%;">Vui lòng chọn ít nhất 1 loại dữ liệu tính tỷ lệ ở Tùy chọn để xem biểu đồ</div>';
+        }
     }
 </script>
 </body>
