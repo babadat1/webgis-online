@@ -40,8 +40,9 @@ async function initDB() {
 
         const res = await pool.query('SELECT COUNT(*) FROM users');
         if (parseInt(res.rows[0].count) === 0) {
-            await pool.query("INSERT INTO users (username, password, role, permissions) VALUES ('admin', 'admin123', 'admin', '{"can_upload":true,"can_delete":true,"can_edit":true,"can_export":true}')");
-            await pool.query("INSERT INTO users (username, password, role, permissions) VALUES ('khach', 'khach123', 'guest', '{}')");
+            // Sửa lỗi cú pháp dấu ngoặc kép ở đây (chuyển sang dùng backtick ` )
+            await pool.query(`INSERT INTO users (username, password, role, permissions) VALUES ('admin', 'admin123', 'admin', '{"can_upload":true,"can_delete":true,"can_edit":true,"can_export":true}')`);
+            await pool.query(`INSERT INTO users (username, password, role, permissions) VALUES ('khach', 'khach123', 'guest', '{}')`);
             console.log("Đã khởi tạo tài khoản mặc định.");
         }
         console.log("Đã kết nối và khởi tạo CSDL thành công!");
