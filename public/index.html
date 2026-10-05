@@ -74,13 +74,14 @@
         .role-admin { background-color: #e74c3c; }
         .role-guest { background-color: #3498db; }
 
-        /* Modal Quản lý tài khoản */
-        #userModal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 4000; display: none; justify-content: center; align-items: center; }
-        .user-modal-box { background: white; padding: 25px; border-radius: 8px; width: 380px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+        /* Modal Quản lý tài khoản mới */
+        #userModal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 4000; display: none; justify-content: center; align-items: center; }
+        .user-modal-box { background: white; padding: 25px; border-radius: 8px; width: 400px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+        .checkbox-label { display: block; font-size: 13px; margin-bottom: 8px; cursor: pointer; color: #333; }
+        .checkbox-label input { margin-right: 8px; }
     </style>
 </head>
 <body>
-    <!-- Màn hình Đăng nhập -->
     <div id="login-overlay">
         <div class="login-box">
             <h2 style="margin-top:0; color:#2c3e50; text-align:center; font-size: 20px;">ĐĂNG NHẬP HỆ THỐNG</h2>
@@ -97,28 +98,37 @@
         </div>
     </div>
 
-    <!-- Modal Quản lý Tài khoản (Chỉ Admin) -->
+    <!-- Cập nhật Modal Quản lý Tài khoản (Thêm & Chỉnh Sửa) -->
     <div id="userModal">
         <div class="user-modal-box">
-            <h3 style="margin-top:0; color:#2c3e50; text-align:center;">Quản lý tài khoản hệ thống</h3>
+            <h3 style="margin-top:0; color:#2c3e50; text-align:center; margin-bottom: 20px;">Quản lý tài khoản hệ thống</h3>
             <div style="margin-bottom:15px;">
-                <label class="edit-label">Chọn tài khoản cần sửa:</label>
-                <select id="targetRole" class="edit-input" onchange="loadTargetUser()">
-                    <option value="admin">Tài khoản Admin</option>
-                    <option value="guest">Tài khoản Khách</option>
+                <label class="edit-label">Chọn tài khoản (để sửa) hoặc Tạo mới:</label>
+                <select id="userSelect" class="edit-input" onchange="loadTargetUser()" style="background-color: #f1f8ff; font-weight: bold; color: #2980b9;">
+                    <!-- Sẽ gen bằng JS -->
                 </select>
             </div>
             <div style="margin-bottom:12px;">
-                <label class="edit-label">Tên tài khoản mới:</label>
-                <input type="text" id="editUsername" class="edit-input" placeholder="Tên đăng nhập...">
+                <label class="edit-label">Tên đăng nhập:</label>
+                <input type="text" id="editUsername" class="edit-input" placeholder="Nhập tên đăng nhập...">
             </div>
             <div style="margin-bottom:15px;">
-                <label class="edit-label">Mật khẩu mới:</label>
-                <input type="text" id="editPassword" class="edit-input" placeholder="Mật khẩu mới...">
+                <label class="edit-label">Mật khẩu:</label>
+                <input type="text" id="editPassword" class="edit-input" placeholder="Nhập mật khẩu...">
             </div>
+            
+            <div id="permissionsArea" style="margin-bottom: 20px; padding: 12px; background: #fdfdfd; border: 1px solid #dcdde1; border-radius: 5px;">
+                <label class="edit-label" style="margin-bottom: 10px; color: #c0392b; border-bottom: 1px solid #eee; padding-bottom: 5px;">Cấp Quyền Truy Cập (Dành cho tài khoản phân quyền):</label>
+                <label class="checkbox-label"><input type="checkbox" id="perm_upload"> Thêm dự án mới (Tải file GeoJSON)</label>
+                <label class="checkbox-label"><input type="checkbox" id="perm_delete"> Xóa dự án bản đồ</label>
+                <label class="checkbox-label"><input type="checkbox" id="perm_edit"> Chỉnh sửa dữ liệu & thuộc tính bản đồ</label>
+                <label class="checkbox-label" style="margin-bottom: 0;"><input type="checkbox" id="perm_export"> Xuất file (.geojson)</label>
+            </div>
+
             <div style="display:flex; gap:10px;">
-                <button class="btn-custom btn-save" style="flex:1; padding:8px;" onclick="saveUserChanges()">Lưu thay đổi</button>
-                <button class="btn-custom btn-cancel" style="flex:1; padding:8px;" onclick="closeUserModal()">Đóng</button>
+                <button class="btn-custom btn-save" style="flex:1; padding:10px; font-size: 14px;" onclick="saveUserChanges()">Lưu thay đổi</button>
+                <button id="btnDeleteUser" class="btn-custom btn-cancel" style="flex:1; padding:10px; font-size: 14px;" onclick="deleteTargetUser()">Xóa user này</button>
+                <button class="btn-custom" style="flex:1; padding:10px; background-color:#95a5a6; color:white; border:none; border-radius:4px; font-size: 14px; font-weight:bold; cursor:pointer;" onclick="closeUserModal()">Đóng</button>
             </div>
         </div>
     </div>
@@ -176,31 +186,19 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
         var map = L.map('map', { center: [10.7769, 106.7009], zoom: 13, maxZoom: 22 });
-        
+        var googleHybrid = L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { maxZoom: 22, subdomains: ['mt0', 'mt1', 'mt2', 'mt3']}).addTo(map);
         var googleRoad = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', { maxZoom: 22, subdomains: ['mt0', 'mt1', 'mt2', 'mt3']});
         var googleSat = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', { maxZoom: 22, subdomains: ['mt0', 'mt1', 'mt2', 'mt3']});
-        var googleHybrid = L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { maxZoom: 22, subdomains: ['mt0', 'mt1', 'mt2', 'mt3']}).addTo(map);
-        
         var googleLabels = L.tileLayer('https://{s}.google.com/vt/lyrs=h&x={x}&y={y}&z={z}', { maxZoom: 22, subdomains: ['mt0', 'mt1', 'mt2', 'mt3']});
-
-        var baseMaps = {
-            "Giao thông (Sáng)": googleRoad,
-            "Vệ tinh (Trơn)": googleSat,
-            "Hỗn hợp (Vệ tinh + Đường)": googleHybrid
-        };
-
-        var overlayMaps = {
-            "Chỉ hiện tên đường & chữ": googleLabels
-        };
-
-        var layerControl = L.control.layers(baseMaps, overlayMaps, {position: 'topright'}).addTo(map);
         
-        var currentGeoJsonLayer = null;
-        var isEditMode = false;
-        var currentEditing = null; 
+        L.control.layers({"Hỗn hợp": googleHybrid, "Đường phố": googleRoad, "Vệ tinh": googleSat}, {"Tên đường": googleLabels}, {position: 'topright'}).addTo(map);
+        
+        var currentGeoJsonLayer = null, isEditMode = false, currentEditing = null; 
         const API_URL = window.location.origin;
         var currentActiveProject = ""; 
         var currentUserRole = null; 
+        var currentUserPermissions = {};
+        var canEditData = false;
         var systemUsersData = [];
         
         var highlightedLayer = null;
@@ -208,22 +206,12 @@
         var highlightStyle = { color: "#e74c3c", weight: 4, fillColor: "#e74c3c", fillOpacity: 0.7 };
 
         function highlightFeature(layer) {
-            if (highlightedLayer && currentGeoJsonLayer) {
-                currentGeoJsonLayer.resetStyle(highlightedLayer);
-            }
+            if (highlightedLayer && currentGeoJsonLayer) currentGeoJsonLayer.resetStyle(highlightedLayer);
             highlightedLayer = layer;
-            if (layer.setStyle) {
-                layer.setStyle(highlightStyle);
-                if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
-                    layer.bringToFront();
-                }
-            }
+            if (layer.setStyle) { layer.setStyle(highlightStyle); if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) layer.bringToFront(); }
         }
 
-        function showLoading(msg) {
-            document.getElementById('loading-text').innerText = msg;
-            document.getElementById('loading-overlay').style.display = 'flex';
-        }
+        function showLoading(msg) { document.getElementById('loading-text').innerText = msg; document.getElementById('loading-overlay').style.display = 'flex'; }
         function hideLoading() { document.getElementById('loading-overlay').style.display = 'none'; }
 
         function loadProjectList() {
@@ -231,157 +219,196 @@
                 .then(res => res.json())
                 .then(data => {
                     if (data.success) {
-                        let select = document.getElementById('projectSelect');
-                        let oldVal = select.value;
+                        let select = document.getElementById('projectSelect'); let oldVal = select.value;
                         select.innerHTML = '<option value="">-- Chọn dự án --</option>';
-                        data.projects.forEach(p => {
-                            let opt = document.createElement('option');
-                            opt.value = p;
-                            opt.innerText = p;
-                            select.appendChild(opt);
-                        });
+                        data.projects.forEach(p => { select.innerHTML += `<option value="${p}">${p}</option>`; });
                         if(data.projects.includes(oldVal)) select.value = oldVal;
-                        else if(data.projects.length > 0) {
-                            select.value = data.projects[0];
-                            document.getElementById('loadDbBtn').click();
-                        }
+                        else if(data.projects.length > 0) { select.value = data.projects[0]; document.getElementById('loadDbBtn').click(); }
                     }
                 }).catch(err => console.error("Lỗi lấy danh sách DA:", err));
         }
 
-        // Xử lý đăng nhập
+        // 1. ĐĂNG NHẬP VÀ PHÂN QUYỀN TRÊN UI
         document.getElementById('loginBtn').addEventListener('click', function() {
             let u = document.getElementById('username').value;
             let p = document.getElementById('password').value;
-            let err = document.getElementById('login-error');
-            err.style.display = 'none';
-
+            let err = document.getElementById('login-error'); err.style.display = 'none';
             if(!u || !p) { err.innerText = "Vui lòng nhập đủ thông tin!"; err.style.display = 'block'; return; }
-
-            let loginBtn = document.getElementById('loginBtn');
-            loginBtn.innerText = 'Đang xử lý...';
+            this.innerText = 'Đang xử lý...';
 
             fetch(API_URL + '/api/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({username: u, password: p})
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({username: u, password: p})
             }).then(res => res.json()).then(data => {
-                loginBtn.innerText = 'ĐĂNG NHẬP';
+                this.innerText = 'ĐĂNG NHẬP';
                 if(data.success) {
                     currentUserRole = data.role;
+                    currentUserPermissions = data.permissions || {};
                     document.getElementById('login-overlay').style.display = 'none';
                     applyPermissions(); 
                     loadProjectList(); 
-                } else {
-                    err.innerText = data.message; err.style.display = 'block';
-                }
-            }).catch(e => {
-                loginBtn.innerText = 'ĐĂNG NHẬP';
-                err.innerText = "Lỗi kết nối tới Server!"; err.style.display = 'block';
-            });
+                } else { err.innerText = data.message; err.style.display = 'block'; }
+            }).catch(e => { this.innerText = 'ĐĂNG NHẬP'; err.innerText = "Lỗi kết nối tới Server!"; err.style.display = 'block'; });
         });
 
-        // Tải danh sách user để quản lý
+        function applyPermissions() {
+            let perms = currentUserPermissions;
+            canEditData = false;
+
+            // Xóa Badge cũ nếu có
+            let oldBadge = document.getElementById('roleBadgeDisplay');
+            if(oldBadge) oldBadge.remove();
+            let badge = document.createElement('div'); badge.id = 'roleBadgeDisplay';
+            document.querySelector('.file-control').insertBefore(badge, document.querySelector('.project-group'));
+
+            if (currentUserRole === 'admin') {
+                document.getElementById('delProjectBtn').style.display = 'block';
+                document.getElementById('upload-section').style.display = 'block';
+                document.getElementById('manageUsersBtn').style.display = 'block';
+                document.getElementById('exportBtn').style.display = 'block';
+                canEditData = true;
+                
+                badge.className = 'role-badge role-admin';
+                badge.innerText = '👑 Admin (Toàn quyền)';
+            } else {
+                document.getElementById('manageUsersBtn').style.display = 'none';
+                
+                document.getElementById('delProjectBtn').style.display = perms.can_delete ? 'block' : 'none';
+                document.getElementById('upload-section').style.display = perms.can_upload ? 'block' : 'none';
+                document.getElementById('exportBtn').style.display = perms.can_export ? 'block' : 'none';
+                canEditData = !!perms.can_edit;
+                
+                badge.className = 'role-badge role-guest';
+                badge.innerText = `👤 Tài khoản phân quyền`;
+            }
+        }
+
+        // 2. LOGIC QUẢN LÝ TÀI KHOẢN (CỦA ADMIN)
         function fetchSystemUsers() {
-            fetch(API_URL + '/api/users')
-                .then(res => res.json())
-                .then(data => {
-                    if(data.success) {
-                        systemUsersData = data.users;
-                        loadTargetUser();
-                    }
-                });
+            fetch(API_URL + '/api/users').then(res => res.json()).then(data => {
+                if(data.success) {
+                    systemUsersData = data.users;
+                    let select = document.getElementById('userSelect');
+                    select.innerHTML = '<option value="NEW">➕ TẠO TÀI KHOẢN MỚI...</option>';
+                    systemUsersData.forEach(u => {
+                        let roleStr = u.role === 'admin' ? ' (Admin)' : '';
+                        select.innerHTML += `<option value="${u.username}">${u.username}${roleStr}</option>`;
+                    });
+                    loadTargetUser();
+                }
+            });
         }
 
-        function openUserModal() {
-            fetchSystemUsers();
-            document.getElementById('userModal').style.display = 'flex';
-        }
-
-        function closeUserModal() {
-            document.getElementById('userModal').style.display = 'none';
-        }
+        function openUserModal() { fetchSystemUsers(); document.getElementById('userModal').style.display = 'flex'; }
+        function closeUserModal() { document.getElementById('userModal').style.display = 'none'; }
 
         function loadTargetUser() {
-            let targetRole = document.getElementById('targetRole').value;
-            let user = systemUsersData.find(u => u.role === targetRole);
-            if(user) {
-                document.getElementById('editUsername').value = user.username;
-                document.getElementById('editPassword').value = user.password;
+            let targetUser = document.getElementById('userSelect').value;
+            let permsArea = document.getElementById('permissionsArea');
+            let delBtn = document.getElementById('btnDeleteUser');
+
+            if(targetUser === 'NEW') {
+                document.getElementById('editUsername').value = '';
+                document.getElementById('editPassword').value = '';
+                document.getElementById('perm_upload').checked = false;
+                document.getElementById('perm_delete').checked = false;
+                document.getElementById('perm_edit').checked = false;
+                document.getElementById('perm_export').checked = false;
+                
+                permsArea.style.opacity = '1'; permsArea.style.pointerEvents = 'auto';
+                delBtn.style.display = 'none';
             } else {
-                document.getElementById('editUsername').value = "";
-                document.getElementById('editPassword').value = "";
+                let user = systemUsersData.find(u => u.username === targetUser);
+                if(user) {
+                    document.getElementById('editUsername').value = user.username;
+                    document.getElementById('editPassword').value = user.password;
+                    
+                    if(user.role === 'admin') {
+                        // Khóa giao diện phân quyền đối với Admin
+                        permsArea.style.opacity = '0.4'; permsArea.style.pointerEvents = 'none';
+                        document.getElementById('perm_upload').checked = true;
+                        document.getElementById('perm_delete').checked = true;
+                        document.getElementById('perm_edit').checked = true;
+                        document.getElementById('perm_export').checked = true;
+                        delBtn.style.display = 'none'; // Cấm xóa admin
+                    } else {
+                        permsArea.style.opacity = '1'; permsArea.style.pointerEvents = 'auto';
+                        let p = user.permissions || {};
+                        document.getElementById('perm_upload').checked = !!p.can_upload;
+                        document.getElementById('perm_delete').checked = !!p.can_delete;
+                        document.getElementById('perm_edit').checked = !!p.can_edit;
+                        document.getElementById('perm_export').checked = !!p.can_export;
+                        delBtn.style.display = 'block';
+                    }
+                }
             }
         }
 
         function saveUserChanges() {
-            let targetRole = document.getElementById('targetRole').value;
-            let newU = document.getElementById('editUsername').value;
-            let newP = document.getElementById('editPassword').value;
-            let currentUserObj = systemUsersData.find(u => u.role === targetRole);
-            let oldU = currentUserObj ? currentUserObj.username : targetRole;
+            let targetUser = document.getElementById('userSelect').value;
+            let mode = targetUser === 'NEW' ? 'create' : 'update';
+            let oldU = targetUser === 'NEW' ? '' : targetUser;
+            
+            let newU = document.getElementById('editUsername').value.trim();
+            let newP = document.getElementById('editPassword').value.trim();
+            
+            if(!newU || !newP) return alert("Vui lòng nhập đầy đủ Tên tài khoản và Mật khẩu!");
+            
+            let userObj = systemUsersData.find(u => u.username === targetUser);
+            let roleToSave = (userObj && userObj.role === 'admin') ? 'admin' : 'guest';
+            
+            let permissions = {
+                can_upload: document.getElementById('perm_upload').checked,
+                can_delete: document.getElementById('perm_delete').checked,
+                can_edit: document.getElementById('perm_edit').checked,
+                can_export: document.getElementById('perm_export').checked
+            };
 
-            if(!newU || !newP) return alert("Vui lòng nhập đầy đủ thông tin tài khoản và mật khẩu!");
-
-            fetch(API_URL + '/api/update-user', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ oldUsername: oldU, newUsername: newU, newPassword: newP, role: targetRole })
+            fetch(API_URL + '/api/save-user', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mode: mode, oldUsername: oldU, newUsername: newU, newPassword: newP, role: roleToSave, permissions: permissions })
             }).then(res => res.json()).then(data => {
                 if(data.success) {
                     alert(data.message);
-                    closeUserModal();
                     fetchSystemUsers();
-                } else {
-                    alert("Lỗi: " + data.message);
-                }
+                    document.getElementById('userSelect').value = newU;
+                    setTimeout(loadTargetUser, 500);
+                } else alert("Lỗi: " + data.message);
             });
         }
 
-        function applyPermissions() {
-            if (currentUserRole === 'guest') {
-                document.getElementById('delProjectBtn').style.display = 'none'; 
-                document.getElementById('upload-section').style.display = 'none'; 
-                document.getElementById('manageUsersBtn').style.display = 'none';
-                
-                let badge = document.createElement('div');
-                badge.className = 'role-badge role-guest';
-                badge.innerText = '👤 Khách (Chỉ xem)';
-                document.querySelector('.file-control').insertBefore(badge, document.querySelector('.project-group'));
-            } else if (currentUserRole === 'admin') {
-                document.getElementById('manageUsersBtn').style.display = 'block';
-                let badge = document.createElement('div');
-                badge.className = 'role-badge role-admin';
-                badge.innerText = '👑 Admin (Toàn quyền)';
-                document.querySelector('.file-control').insertBefore(badge, document.querySelector('.project-group'));
+        function deleteTargetUser() {
+            let targetUser = document.getElementById('userSelect').value;
+            if(targetUser === 'NEW' || targetUser === 'admin') return;
+            
+            if(confirm(`Bạn có CHẮC CHẮN muốn XÓA vĩnh viễn tài khoản [${targetUser}] không?`)) {
+                fetch(API_URL + '/api/delete-user/' + targetUser, { method: 'DELETE' })
+                .then(res => res.json()).then(data => {
+                    if(data.success) {
+                        alert(data.message);
+                        fetchSystemUsers();
+                    } else alert(data.error || data.message);
+                });
             }
         }
-        
-        window.onload = function() { };
 
+        // 3. CÁC TÍNH NĂNG BẢN ĐỒ VÀ RÀNG BUỘC QUYỀN
         document.getElementById('delProjectBtn').addEventListener('click', function() {
             let p = document.getElementById('projectSelect').value;
             if(!p) return alert("Vui lòng chọn dự án cần xóa!");
             if(confirm(`Bạn có chắc muốn XÓA TOÀN BỘ dữ liệu của dự án [${p}]?`)) {
                 showLoading("Đang xóa dự án...");
-                fetch(API_URL + '/api/delete-project/' + encodeURIComponent(p), { method: 'DELETE' })
-                    .then(res => res.json())
-                    .then(data => {
-                        hideLoading();
-                        if(data.success) {
-                            alert(data.message);
-                            if (currentGeoJsonLayer) { map.removeLayer(currentGeoJsonLayer); layerControl.removeLayer(currentGeoJsonLayer); currentGeoJsonLayer = null; }
-                            localStorage.removeItem('webgis_cache_data');
-                            loadProjectList();
-                        } else alert("Lỗi xóa: " + data.error);
-                    });
+                fetch(API_URL + '/api/delete-project/' + encodeURIComponent(p), { method: 'DELETE' }).then(res => res.json()).then(data => {
+                    hideLoading();
+                    if(data.success) {
+                        alert(data.message);
+                        if (currentGeoJsonLayer) { map.removeLayer(currentGeoJsonLayer); currentGeoJsonLayer = null; }
+                        localStorage.removeItem('webgis_cache_data'); loadProjectList();
+                    } else alert("Lỗi xóa: " + data.error);
+                });
             }
         });
 
-        document.getElementById('projectSelect').addEventListener('change', function() {
-            if(this.value) document.getElementById('loadDbBtn').click();
-        });
-
+        document.getElementById('projectSelect').addEventListener('change', function() { if(this.value) document.getElementById('loadDbBtn').click(); });
         function saveToLocalStorageCache(geojson) { localStorage.setItem('webgis_cache_data', JSON.stringify(geojson)); }
         function escapeHtml(text) { return text === null || text === undefined ? '' : String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); }
         function closeSidebar() { document.getElementById('edit-sidebar').classList.remove('active'); isEditMode = false; currentEditing = null; }
@@ -389,18 +416,10 @@
 
         function saveCurrentEdit() {
             if (currentEditing) {
-                for (var key in currentEditing.inputs) {
-                    currentEditing.feature.properties[key] = currentEditing.inputs[key].value;
-                }
+                for (var key in currentEditing.inputs) currentEditing.feature.properties[key] = currentEditing.inputs[key].value;
                 fetch(API_URL + '/api/save-feature', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        id: currentEditing.feature.id,
-                        properties: currentEditing.feature.properties,
-                        geometry: currentEditing.feature.geometry,
-                        projectName: currentActiveProject
-                    })
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: currentEditing.feature.id, properties: currentEditing.feature.properties, geometry: currentEditing.feature.geometry, projectName: currentActiveProject })
                 }).then(res => res.json()).then(data => {
                     showSaveStatus("✓ Đã lưu sửa đổi");
                     if (currentGeoJsonLayer) saveToLocalStorageCache(currentGeoJsonLayer.toGeoJSON());
@@ -411,11 +430,8 @@
         }
 
         function openSidebar(feature, layer) {
-            var sidebar = document.getElementById('edit-sidebar');
-            var formDiv = document.getElementById('sidebar-form');
-            var footerDiv = document.getElementById('sidebar-footer');
-            formDiv.innerHTML = ''; footerDiv.innerHTML = '';
-            var props = feature.properties || {}; var inputElements = {};
+            var sidebar = document.getElementById('edit-sidebar'); var formDiv = document.getElementById('sidebar-form'); var footerDiv = document.getElementById('sidebar-footer');
+            formDiv.innerHTML = ''; footerDiv.innerHTML = ''; var props = feature.properties || {}; var inputElements = {};
             for (var key in props) {
                 var label = document.createElement('label'); label.className = 'edit-label'; label.innerText = key + ':'; formDiv.appendChild(label);
                 var input = document.createElement('input'); input.type = 'text'; input.className = 'edit-input'; input.value = props[key] !== null && props[key] !== undefined ? props[key] : ''; formDiv.appendChild(input);
@@ -435,9 +451,11 @@
             var html = "";
             for (var key in feature.properties) html += "<b>" + escapeHtml(key) + ":</b> " + escapeHtml(feature.properties[key]) + "<br>";
             propsDiv.innerHTML = html; container.appendChild(propsDiv);
-            if (currentUserRole === 'admin') {
+            
+            // Chỉ hiện nút sửa nếu là admin HOẶC được cấp quyền edit
+            if (currentUserRole === 'admin' || canEditData) {
                 var btnContainer = document.createElement('div'); btnContainer.className = 'popup-btn-container';
-                var editBtn = document.createElement('button'); editBtn.className = 'btn-custom btn-edit'; editBtn.innerText = 'Sửa';
+                var editBtn = document.createElement('button'); editBtn.className = 'btn-custom btn-edit'; editBtn.innerText = 'Chỉnh sửa';
                 editBtn.onclick = function() { openSidebar(feature, layer); map.closePopup(); };
                 btnContainer.appendChild(editBtn); container.appendChild(btnContainer);
             }
@@ -461,7 +479,13 @@
                 zoomBtn.onclick = function(e) { e.stopPropagation(); toggleAttributeTable(); if (item.layer.getBounds) { map.fitBounds(item.layer.getBounds(), { maxZoom: 20 }); item.layer.openPopup(); highlightFeature(item.layer); } };
                 tdAction.appendChild(zoomBtn); tr.appendChild(tdAction);
                 keys.forEach(key => { var td = document.createElement('td'); var val = item.feature.properties[key]; td.innerText = val !== null && val !== undefined ? val : ''; tr.appendChild(td); });
-                tr.onclick = function() { toggleAttributeTable(); if (item.layer.getBounds) { map.fitBounds(item.layer.getBounds(), { maxZoom: 20 }); item.layer.openPopup(); highlightFeature(item.layer); } if (currentUserRole === 'admin') { openSidebar(item.feature, item.layer); } };
+                
+                tr.onclick = function() { 
+                    toggleAttributeTable(); 
+                    if (item.layer.getBounds) { map.fitBounds(item.layer.getBounds(), { maxZoom: 20 }); item.layer.openPopup(); highlightFeature(item.layer); } 
+                    // Mở sidebar sửa nếu có quyền
+                    if (currentUserRole === 'admin' || canEditData) { openSidebar(item.feature, item.layer); } 
+                };
                 tbody.appendChild(tr);
             });
             tableEl.appendChild(tbody);
@@ -471,7 +495,7 @@
         document.getElementById('openTableBtn').addEventListener('click', toggleAttributeTable);
 
         function renderDataToMap(geojsondata, layerName) {
-            if (currentGeoJsonLayer) { map.removeLayer(currentGeoJsonLayer); layerControl.removeLayer(currentGeoJsonLayer); }
+            if (currentGeoJsonLayer) { map.removeLayer(currentGeoJsonLayer); }
             currentGeoJsonLayer = L.geoJSON(geojsondata, {
                 style: function (feature) { return defaultStyle; },
                 onEachFeature: function (feature, layer) {
@@ -479,23 +503,22 @@
                     if (feature.properties) { layer.bindPopup(createPopupContent(feature, layer)); }
                     layer.on('click', function(e) {
                         highlightFeature(layer);
-                        if (currentUserRole === 'admin' && isEditMode) { if (currentEditing && currentEditing.layer === layer) return; saveCurrentEdit(); map.closePopup(); openSidebar(feature, layer); }
+                        if ((currentUserRole === 'admin' || canEditData) && isEditMode) { 
+                            if (currentEditing && currentEditing.layer === layer) return; 
+                            saveCurrentEdit(); map.closePopup(); openSidebar(feature, layer); 
+                        }
                     });
                 }
             });
             currentGeoJsonLayer.addTo(map);
-            layerControl.addOverlay(currentGeoJsonLayer, layerName);
             if (currentGeoJsonLayer.getBounds().isValid()) { map.fitBounds(currentGeoJsonLayer.getBounds()); }
             saveToLocalStorageCache(geojsondata);
         }
 
         document.getElementById('geojsonFile').addEventListener('change', function(e) {
-            var file = e.target.files[0];
-            if (!file) return;
+            var file = e.target.files[0]; if (!file) return;
             var pName = file.name.replace(/\.[^/.]+$/, "");
-            closeSidebar();
-            var reader = new FileReader();
-            showLoading("Đang upload file lên Database...");
+            closeSidebar(); var reader = new FileReader(); showLoading("Đang upload file lên Database...");
 
             reader.onload = function(event) {
                 try {
@@ -503,18 +526,13 @@
                     geojson.features.forEach(f => { if(!f.id) f.id = 'feat_' + Math.random().toString(36).substr(2, 9); });
 
                     fetch(API_URL + '/api/upload-features', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ features: geojson.features, projectName: pName })
                     }).then(res => res.json()).then(data => {
                         hideLoading();
                         if(data.success) {
-                            alert(data.message);
-                            loadProjectList(); 
-                            setTimeout(() => {
-                                document.getElementById('projectSelect').value = pName;
-                                document.getElementById('loadDbBtn').click(); 
-                            }, 500);
+                            alert(data.message); loadProjectList(); 
+                            setTimeout(() => { document.getElementById('projectSelect').value = pName; document.getElementById('loadDbBtn').click(); }, 500);
                         } else alert("Lỗi lưu DB: " + data.error);
                     });
                 } catch (err) { hideLoading(); alert("Lỗi đọc file GeoJSON!"); }
@@ -523,34 +541,26 @@
         });
 
         document.getElementById('loadDbBtn').addEventListener('click', function() {
-            closeSidebar();
-            let pName = document.getElementById('projectSelect').value;
+            closeSidebar(); let pName = document.getElementById('projectSelect').value;
             if(!pName) {
-                if (currentGeoJsonLayer) { map.removeLayer(currentGeoJsonLayer); layerControl.removeLayer(currentGeoJsonLayer); currentGeoJsonLayer = null; }
-                localStorage.removeItem('webgis_cache_data');
-                return alert("Vui lòng chọn 1 Dự án từ danh sách!");
+                if (currentGeoJsonLayer) { map.removeLayer(currentGeoJsonLayer); currentGeoJsonLayer = null; }
+                localStorage.removeItem('webgis_cache_data'); return alert("Vui lòng chọn 1 Dự án từ danh sách!");
             }
-            
             showLoading("Đang tải dữ liệu dự án [" + pName + "]...");
             currentActiveProject = pName;
             
             fetch(API_URL + '/api/get-features?project=' + encodeURIComponent(pName))
-                .then(res => res.json())
-                .then(data => {
+                .then(res => res.json()).then(data => {
                     hideLoading();
                     if(data.features && data.features.length > 0) {
-                        renderDataToMap(data, pName);
-                        showSaveStatus("✓ Đã cập nhật dự án mới nhất");
-                    } else {
-                        alert("Dự án này chưa có dữ liệu hoặc đã bị lỗi!");
-                    }
+                        renderDataToMap(data, pName); showSaveStatus("✓ Đã cập nhật dự án mới nhất");
+                    } else alert("Dự án này chưa có dữ liệu hoặc đã bị lỗi!");
                 }).catch(err => { hideLoading(); console.error(err); });
         });
 
-        // Chặn tài khoản khách dùng nút Xuất File
         document.getElementById('exportBtn').addEventListener('click', function() {
-            if (currentUserRole !== 'admin') {
-                return alert("Tài khoản khách không có quyền xuất file!");
+            if (currentUserRole !== 'admin' && !currentUserPermissions.can_export) {
+                return alert("Tài khoản của bạn không được cấp quyền Xuất file!");
             }
             if (!currentGeoJsonLayer) return alert("Chưa có dữ liệu để xuất!");
             if (isEditMode) { saveCurrentEdit(); closeSidebar(); }

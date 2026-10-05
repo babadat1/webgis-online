@@ -33,13 +33,16 @@ async function initDB() {
                 password VARCHAR(100) NOT NULL,
                 role VARCHAR(20) NOT NULL
             );
+            
+            -- Thêm cột permissions (phân quyền chi tiết) nếu chưa có
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS permissions JSONB DEFAULT '{}'::jsonb;
         `);
 
         const res = await pool.query('SELECT COUNT(*) FROM users');
         if (parseInt(res.rows[0].count) === 0) {
-            await pool.query("INSERT INTO users (username, password, role) VALUES ('admin', 'admin123', 'admin')");
-            await pool.query("INSERT INTO users (username, password, role) VALUES ('khach', 'khach123', 'guest')");
-            console.log("Đã khởi tạo tài khoản mặc định (admin & khach).");
+            await pool.query("INSERT INTO users (username, password, role, permissions) VALUES ('admin', 'admin123', 'admin', '{"can_upload":true,"can_delete":true,"can_edit":true,"can_export":true}')");
+            await pool.query("INSERT INTO users (username, password, role, permissions) VALUES ('khach', 'khach123', 'guest', '{}')");
+            console.log("Đã khởi tạo tài khoản mặc định.");
         }
         console.log("Đã kết nối và khởi tạo CSDL thành công!");
     } catch (err) {
@@ -55,7 +58,7 @@ app.post('/api/login', async (req, res) => {
         const result = await pool.query('SELECT * FROM users WHERE username = $1 AND password = $2', [username, password]);
         if (result.rows.length > 0) {
             const user = result.rows[0];
-            res.json({ success: true, role: user.role, username: user.username, message: 'Đăng nhập thành công!' });
+            res.json({ success: true, role: user.role, username: user.username, permissions: user.permissions || {}, message: 'Đăng nhập thành công!' });
         } else {
             res.status(401).json({ success: false, message: 'Sai tên tài khoản hoặc mật khẩu!' });
         }
@@ -66,42 +69,59 @@ app.post('/api/login', async (req, res) => {
 
 app.get('/api/users', async (req, res) => {
     try {
-        const result = await pool.query('SELECT username, password, role FROM users');
+        const result = await pool.query('SELECT username, password, role, permissions FROM users');
         res.json({ success: true, users: result.rows });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
     }
 });
 
-app.put('/api/update-user', async (req, res) => {
-    const { oldUsername, newUsername, newPassword, role } = req.body;
+// Gộp tạo mới và cập nhật user
+app.post('/api/save-user', async (req, res) => {
+    const { mode, oldUsername, newUsername, newPassword, role, permissions } = req.body;
     try {
-        if (oldUsername !== newUsername) {
+        if (mode === 'create') {
             const check = await pool.query('SELECT * FROM users WHERE username = $1', [newUsername]);
             if (check.rows.length > 0) {
-                return res.status(400).json({ success: false, message: 'Tên tài khoản mới đã tồn tại!' });
+                return res.status(400).json({ success: false, message: 'Tên tài khoản đã tồn tại!' });
             }
+            await pool.query('INSERT INTO users (username, password, role, permissions) VALUES ($1, $2, $3, $4)', 
+                [newUsername, newPassword, role || 'guest', permissions]);
+            res.json({ success: true, message: 'Đã tạo tài khoản mới thành công!' });
+            
+        } else if (mode === 'update') {
+            if (oldUsername !== newUsername) {
+                const check = await pool.query('SELECT * FROM users WHERE username = $1', [newUsername]);
+                if (check.rows.length > 0) {
+                    return res.status(400).json({ success: false, message: 'Tên tài khoản mới đã tồn tại!' });
+                }
+            }
+            await pool.query('UPDATE users SET username = $1, password = $2, permissions = $3 WHERE username = $4', 
+                [newUsername, newPassword, permissions, oldUsername]);
+            res.json({ success: true, message: 'Cập nhật tài khoản thành công!' });
         }
-        
-        const updateQuery = `
-            UPDATE users SET username = $1, password = $2 WHERE role = $3;
-        `;
-        const result = await pool.query(updateQuery, [newUsername, newPassword, role]);
-        if (result.rowCount === 0) {
-            await pool.query('INSERT INTO users (username, password, role) VALUES ($1, $2, $3)', [newUsername, newPassword, role]);
-        }
-        res.json({ success: true, message: 'Cập nhật tài khoản thành công!' });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
     }
 });
 
+app.delete('/api/delete-user/:username', async (req, res) => {
+    const username = req.params.username;
+    if (username === 'admin') return res.status(400).json({ success: false, message: 'Tuyệt đối không thể xóa tài khoản admin gốc!' });
+    try {
+        await pool.query("DELETE FROM users WHERE username = $1", [username]);
+        res.json({ success: true, message: 'Đã xóa tài khoản thành công!' });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// Các endpoint dự án giữ nguyên
 app.get('/api/projects', async (req, res) => {
     try {
         const result = await pool.query("SELECT DISTINCT COALESCE(project_name, 'Dự án Mặc định') as project_name FROM geojson_features ORDER BY project_name ASC");
         res.json({ success: true, projects: result.rows.map(r => r.project_name) });
     } catch (err) {
-        console.error("Lỗi lấy danh sách dự án:", err);
         res.status(500).json({ success: false, error: err.message });
     }
 });
@@ -124,11 +144,7 @@ app.post('/api/save-feature', async (req, res) => {
             INSERT INTO geojson_features (feature_id, properties, geometry, project_name, updated_at)
             VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
             ON CONFLICT (feature_id) 
-            DO UPDATE SET 
-                properties = EXCLUDED.properties, 
-                geometry = EXCLUDED.geometry,
-                project_name = EXCLUDED.project_name,
-                updated_at = CURRENT_TIMESTAMP;
+            DO UPDATE SET properties = EXCLUDED.properties, geometry = EXCLUDED.geometry, project_name = EXCLUDED.project_name, updated_at = CURRENT_TIMESTAMP;
         `;
         await pool.query(query, [id, properties, geometry, pName]);
         res.json({ success: true, message: 'Đã lưu sửa đổi!' });
@@ -139,9 +155,7 @@ app.post('/api/save-feature', async (req, res) => {
 
 app.post('/api/upload-features', async (req, res) => {
     const { features, projectName } = req.body;
-    if (!features || !Array.isArray(features)) {
-        return res.status(400).json({ error: 'Dữ liệu GeoJSON không hợp lệ' });
-    }
+    if (!features || !Array.isArray(features)) return res.status(400).json({ error: 'Dữ liệu GeoJSON không hợp lệ' });
     const pName = projectName || 'Dự án Mặc định';
     const client = await pool.connect();
     
@@ -168,7 +182,6 @@ app.post('/api/upload-features', async (req, res) => {
         res.json({ success: true, message: `Đã lưu thành công dự án [${pName}]!` });
     } catch (err) {
         await client.query('ROLLBACK');
-        console.error("Lỗi upload file:", err);
         res.status(500).json({ success: false, error: err.message });
     } finally {
         client.release();
@@ -188,16 +201,7 @@ app.get('/api/get-features', async (req, res) => {
         } else {
             result = await pool.query('SELECT feature_id, properties, geometry FROM geojson_features LIMIT 0');
         }
-        
-        const geojson = {
-            type: "FeatureCollection",
-            features: result.rows.map(row => ({
-                type: "Feature",
-                id: row.feature_id,
-                properties: row.properties,
-                geometry: row.geometry
-            }))
-        };
+        const geojson = { type: "FeatureCollection", features: result.rows.map(row => ({ type: "Feature", id: row.feature_id, properties: row.properties, geometry: row.geometry })) };
         res.json(geojson);
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
