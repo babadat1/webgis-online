@@ -74,11 +74,19 @@
         .role-admin { background-color: #e74c3c; }
         .role-guest { background-color: #3498db; }
 
-        /* Modal Quản lý tài khoản mới */
         #userModal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 4000; display: none; justify-content: center; align-items: center; }
         .user-modal-box { background: white; padding: 25px; border-radius: 8px; width: 400px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
         .checkbox-label { display: block; font-size: 13px; margin-bottom: 8px; cursor: pointer; color: #333; }
         .checkbox-label input { margin-right: 8px; }
+
+        /* Panel cấu hình Flycam */
+        .flight-panel {
+            position: absolute; top: 10px; right: 10px; background: white;
+            padding: 15px; border-radius: 6px; box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+            z-index: 1000; font-size: 13px; width: 260px; display: none; flex-direction: column; gap: 10px;
+        }
+        .flight-panel h3 { margin: 0 0 5px 0; color: #d35400; font-size: 15px; border-bottom: 1px solid #eee; padding-bottom: 5px;}
+        .wp-tooltip { background: rgba(0,0,0,0.7); color: white; border: none; box-shadow: none; font-weight: bold; padding: 2px 5px; font-size: 11px; }
     </style>
 </head>
 <body>
@@ -98,15 +106,13 @@
         </div>
     </div>
 
-    <!-- Cập nhật Modal Quản lý Tài khoản (Thêm & Chỉnh Sửa) -->
+    <!-- Modal Quản lý Tài khoản -->
     <div id="userModal">
         <div class="user-modal-box">
             <h3 style="margin-top:0; color:#2c3e50; text-align:center; margin-bottom: 20px;">Quản lý tài khoản hệ thống</h3>
             <div style="margin-bottom:15px;">
                 <label class="edit-label">Chọn tài khoản (để sửa) hoặc Tạo mới:</label>
-                <select id="userSelect" class="edit-input" onchange="loadTargetUser()" style="background-color: #f1f8ff; font-weight: bold; color: #2980b9;">
-                    <!-- Sẽ gen bằng JS -->
-                </select>
+                <select id="userSelect" class="edit-input" onchange="loadTargetUser()" style="background-color: #f1f8ff; font-weight: bold; color: #2980b9;"></select>
             </div>
             <div style="margin-bottom:12px;">
                 <label class="edit-label">Tên đăng nhập:</label>
@@ -138,13 +144,12 @@
         <div id="loading-text">Đang xử lý dữ liệu... Vui lòng chờ</div>
     </div>
 
+    <!-- UI Cửa sổ chức năng trái -->
     <div class="file-control">
         <div class="project-group">
             <label>1. Cửa sổ Dự Án:</label>
             <div class="project-row">
-                <select id="projectSelect">
-                    <option value="">-- Chọn dự án --</option>
-                </select>
+                <select id="projectSelect"><option value="">-- Chọn dự án --</option></select>
                 <button id="delProjectBtn" class="btn-custom btn-cancel" title="Xóa dự án này">✕</button>
             </div>
             <button id="loadDbBtn" class="btn-custom btn-db" style="margin-top: 8px;">🔄 Tải Bản Đồ Dự Án Này</button>
@@ -158,11 +163,31 @@
 
         <button id="openTableBtn" class="btn-custom btn-table">Mở Bảng Thuộc Tính</button>
         <a href="report.html" class="btn-custom btn-report" target="_blank">Trang Báo Cáo Thống Kê 📊</a>
+        
+        <!-- NÚT GỌI FLYCAM -->
+        <button id="flightModeBtn" class="btn-custom" style="background-color: #d35400; width: 100%; margin-bottom: 6px; font-weight: bold; padding: 7px; font-size: 13px;">✈️ Lập đường bay Flycam</button>
+
         <button id="manageUsersBtn" class="btn-custom btn-users" onclick="openUserModal()">⚙️ Quản lý Tài khoản</button>
         
         <hr style="margin: 8px 0; border: 0; border-top: 1px solid #ddd;">
         <button id="exportBtn" class="btn-custom btn-save" style="width: 100%; margin: 0; padding: 7px; font-weight: bold; font-size: 13px;">Xuất File (.geojson)</button>
         <div id="saving-status">✓ Đã đồng bộ Database</div>
+    </div>
+
+    <!-- UI Cửa sổ Flight Path (Góc phải) -->
+    <div id="flightPanel" class="flight-panel">
+        <h3>✈️ Thiết lập Đường Bay</h3>
+        <div style="font-size: 12px; color: #555; margin-bottom: 5px;">Tải 1 file bản đồ vùng đo đạc (Dự án) trước để tham chiếu.<br><br><b>Click chuột lên bản đồ</b> để thêm điểm Waypoint (WP) định hình đường bay.</div>
+        <div>
+            <label class="edit-label">Độ cao bay an toàn (mét):</label>
+            <input type="number" id="flightAltitude" class="edit-input" value="50" min="10" max="500">
+        </div>
+        <div style="display: flex; gap: 5px;">
+            <button class="btn-custom btn-edit" style="flex: 1; padding: 6px; font-size: 12px;" onclick="undoFlightPath()">↺ Xóa điểm cuối</button>
+            <button class="btn-custom btn-cancel" style="flex: 1; padding: 6px; font-size: 12px;" onclick="clearFlightPath()">✕ Xóa toàn bộ</button>
+        </div>
+        <button class="btn-custom btn-save" style="width: 100%; padding: 8px; font-weight: bold; margin-top: 5px;" onclick="exportKML()">📥 Tải file KML (Cho DJI Pilot)</button>
+        <button class="btn-custom" style="background: #7f8c8d; width: 100%; padding: 8px; font-weight: bold;" onclick="exitFlightMode()">Thoát chế độ bay</button>
     </div>
 
     <div id="edit-sidebar" class="sidebar">
@@ -205,6 +230,78 @@
         var defaultStyle = { color: "#3498db", weight: 2, fillColor: "#3498db", fillOpacity: 0.4 };
         var highlightStyle = { color: "#e74c3c", weight: 4, fillColor: "#e74c3c", fillOpacity: 0.7 };
 
+        // === BIẾN VÀ HÀM CHO FLYCAM ===
+        var isFlightMode = false;
+        var flightWaypoints = [];
+        var flightPolyline = L.polyline([], {color: '#d35400', weight: 4, dashArray: '5, 10'}).addTo(map);
+        var flightMarkers = L.layerGroup().addTo(map);
+
+        document.getElementById('flightModeBtn').addEventListener('click', function() {
+            isFlightMode = true;
+            document.getElementById('flightPanel').style.display = 'flex';
+            document.querySelector('.file-control').style.display = 'none';
+            map.getContainer().style.cursor = 'crosshair';
+            alert("Chế độ Lập đường bay đã bật! Vui lòng click chuột trái lên bản đồ để tạo các điểm Waypoint.");
+        });
+
+        function exitFlightMode() {
+            isFlightMode = false;
+            document.getElementById('flightPanel').style.display = 'none';
+            document.querySelector('.file-control').style.display = 'block';
+            map.getContainer().style.cursor = '';
+        }
+
+        map.on('click', function(e) {
+            if (isFlightMode) {
+                flightWaypoints.push(e.latlng);
+                updateFlightPath();
+            }
+        });
+
+        function updateFlightPath() {
+            flightPolyline.setLatLngs(flightWaypoints);
+            flightMarkers.clearLayers();
+            flightWaypoints.forEach((latlng, index) => {
+                let marker = L.circleMarker(latlng, {radius: 5, color: '#d35400', fillColor: '#fff', fillOpacity: 1});
+                marker.bindTooltip("WP " + (index + 1), {permanent: true, direction: 'right', className: 'wp-tooltip'}).openTooltip();
+                flightMarkers.addLayer(marker);
+            });
+        }
+
+        function clearFlightPath() { flightWaypoints = []; updateFlightPath(); }
+        function undoFlightPath() { flightWaypoints.pop(); updateFlightPath(); }
+
+        function exportKML() {
+            if (flightWaypoints.length < 2) return alert("Cần ít nhất 2 điểm (Waypoint) để tạo đường bay!");
+            let alt = document.getElementById('flightAltitude').value || 50;
+            // Generate standard KML that DJI Pilot / GS Pro recognizes for waypoints
+            let kml = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>WebGIS_FlightPlan</name>
+    <Placemark>
+      <name>Flight Path</name>
+      <LineString>
+        <extrude>1</extrude>
+        <tessellate>1</tessellate>
+        <altitudeMode>relativeToGround</altitudeMode>
+        <coordinates>
+`;
+            flightWaypoints.forEach(wp => { kml += `          ${wp.lng},${wp.lat},${alt}
+`; });
+            kml += `        </coordinates>
+      </LineString>
+    </Placemark>
+  </Document>
+</kml>`;
+            
+            var blob = new Blob([kml], { type: "application/vnd.google-earth.kml+xml" });
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a'); a.href = url; a.download = (currentActiveProject || "DuAn") + "_FlightPlan.kml";
+            document.body.appendChild(a); a.click(); document.body.removeChild(a); window.URL.revokeObjectURL(url);
+        }
+        // ==================================
+
         function highlightFeature(layer) {
             if (highlightedLayer && currentGeoJsonLayer) currentGeoJsonLayer.resetStyle(highlightedLayer);
             highlightedLayer = layer;
@@ -228,7 +325,6 @@
                 }).catch(err => console.error("Lỗi lấy danh sách DA:", err));
         }
 
-        // 1. ĐĂNG NHẬP VÀ PHÂN QUYỀN TRÊN UI
         document.getElementById('loginBtn').addEventListener('click', function() {
             let u = document.getElementById('username').value;
             let p = document.getElementById('password').value;
@@ -253,8 +349,6 @@
         function applyPermissions() {
             let perms = currentUserPermissions;
             canEditData = false;
-
-            // Xóa Badge cũ nếu có
             let oldBadge = document.getElementById('roleBadgeDisplay');
             if(oldBadge) oldBadge.remove();
             let badge = document.createElement('div'); badge.id = 'roleBadgeDisplay';
@@ -266,23 +360,19 @@
                 document.getElementById('manageUsersBtn').style.display = 'block';
                 document.getElementById('exportBtn').style.display = 'block';
                 canEditData = true;
-                
                 badge.className = 'role-badge role-admin';
                 badge.innerText = '👑 Admin (Toàn quyền)';
             } else {
                 document.getElementById('manageUsersBtn').style.display = 'none';
-                
                 document.getElementById('delProjectBtn').style.display = perms.can_delete ? 'block' : 'none';
                 document.getElementById('upload-section').style.display = perms.can_upload ? 'block' : 'none';
                 document.getElementById('exportBtn').style.display = perms.can_export ? 'block' : 'none';
                 canEditData = !!perms.can_edit;
-                
                 badge.className = 'role-badge role-guest';
                 badge.innerText = `👤 Tài khoản phân quyền`;
             }
         }
 
-        // 2. LOGIC QUẢN LÝ TÀI KHOẢN (CỦA ADMIN)
         function fetchSystemUsers() {
             fetch(API_URL + '/api/users').then(res => res.json()).then(data => {
                 if(data.success) {
@@ -313,7 +403,6 @@
                 document.getElementById('perm_delete').checked = false;
                 document.getElementById('perm_edit').checked = false;
                 document.getElementById('perm_export').checked = false;
-                
                 permsArea.style.opacity = '1'; permsArea.style.pointerEvents = 'auto';
                 delBtn.style.display = 'none';
             } else {
@@ -321,15 +410,13 @@
                 if(user) {
                     document.getElementById('editUsername').value = user.username;
                     document.getElementById('editPassword').value = user.password;
-                    
                     if(user.role === 'admin') {
-                        // Khóa giao diện phân quyền đối với Admin
                         permsArea.style.opacity = '0.4'; permsArea.style.pointerEvents = 'none';
                         document.getElementById('perm_upload').checked = true;
                         document.getElementById('perm_delete').checked = true;
                         document.getElementById('perm_edit').checked = true;
                         document.getElementById('perm_export').checked = true;
-                        delBtn.style.display = 'none'; // Cấm xóa admin
+                        delBtn.style.display = 'none'; 
                     } else {
                         permsArea.style.opacity = '1'; permsArea.style.pointerEvents = 'auto';
                         let p = user.permissions || {};
@@ -347,15 +434,11 @@
             let targetUser = document.getElementById('userSelect').value;
             let mode = targetUser === 'NEW' ? 'create' : 'update';
             let oldU = targetUser === 'NEW' ? '' : targetUser;
-            
             let newU = document.getElementById('editUsername').value.trim();
             let newP = document.getElementById('editPassword').value.trim();
-            
             if(!newU || !newP) return alert("Vui lòng nhập đầy đủ Tên tài khoản và Mật khẩu!");
-            
             let userObj = systemUsersData.find(u => u.username === targetUser);
             let roleToSave = (userObj && userObj.role === 'admin') ? 'admin' : 'guest';
-            
             let permissions = {
                 can_upload: document.getElementById('perm_upload').checked,
                 can_delete: document.getElementById('perm_delete').checked,
@@ -368,10 +451,7 @@
                 body: JSON.stringify({ mode: mode, oldUsername: oldU, newUsername: newU, newPassword: newP, role: roleToSave, permissions: permissions })
             }).then(res => res.json()).then(data => {
                 if(data.success) {
-                    alert(data.message);
-                    fetchSystemUsers();
-                    document.getElementById('userSelect').value = newU;
-                    setTimeout(loadTargetUser, 500);
+                    alert(data.message); fetchSystemUsers(); document.getElementById('userSelect').value = newU; setTimeout(loadTargetUser, 500);
                 } else alert("Lỗi: " + data.message);
             });
         }
@@ -379,19 +459,13 @@
         function deleteTargetUser() {
             let targetUser = document.getElementById('userSelect').value;
             if(targetUser === 'NEW' || targetUser === 'admin') return;
-            
             if(confirm(`Bạn có CHẮC CHẮN muốn XÓA vĩnh viễn tài khoản [${targetUser}] không?`)) {
-                fetch(API_URL + '/api/delete-user/' + targetUser, { method: 'DELETE' })
-                .then(res => res.json()).then(data => {
-                    if(data.success) {
-                        alert(data.message);
-                        fetchSystemUsers();
-                    } else alert(data.error || data.message);
+                fetch(API_URL + '/api/delete-user/' + targetUser, { method: 'DELETE' }).then(res => res.json()).then(data => {
+                    if(data.success) { alert(data.message); fetchSystemUsers(); } else alert(data.error || data.message);
                 });
             }
         }
 
-        // 3. CÁC TÍNH NĂNG BẢN ĐỒ VÀ RÀNG BUỘC QUYỀN
         document.getElementById('delProjectBtn').addEventListener('click', function() {
             let p = document.getElementById('projectSelect').value;
             if(!p) return alert("Vui lòng chọn dự án cần xóa!");
@@ -452,7 +526,6 @@
             for (var key in feature.properties) html += "<b>" + escapeHtml(key) + ":</b> " + escapeHtml(feature.properties[key]) + "<br>";
             propsDiv.innerHTML = html; container.appendChild(propsDiv);
             
-            // Chỉ hiện nút sửa nếu là admin HOẶC được cấp quyền edit
             if (currentUserRole === 'admin' || canEditData) {
                 var btnContainer = document.createElement('div'); btnContainer.className = 'popup-btn-container';
                 var editBtn = document.createElement('button'); editBtn.className = 'btn-custom btn-edit'; editBtn.innerText = 'Chỉnh sửa';
@@ -483,7 +556,6 @@
                 tr.onclick = function() { 
                     toggleAttributeTable(); 
                     if (item.layer.getBounds) { map.fitBounds(item.layer.getBounds(), { maxZoom: 20 }); item.layer.openPopup(); highlightFeature(item.layer); } 
-                    // Mở sidebar sửa nếu có quyền
                     if (currentUserRole === 'admin' || canEditData) { openSidebar(item.feature, item.layer); } 
                 };
                 tbody.appendChild(tr);
@@ -502,6 +574,8 @@
                     if (!feature.id) { feature.id = 'feat_' + Math.random().toString(36).substr(2, 9); }
                     if (feature.properties) { layer.bindPopup(createPopupContent(feature, layer)); }
                     layer.on('click', function(e) {
+                        if (isFlightMode) return; // Không hiển thị popup khi đang vẽ đường bay
+                        
                         highlightFeature(layer);
                         if ((currentUserRole === 'admin' || canEditData) && isEditMode) { 
                             if (currentEditing && currentEditing.layer === layer) return; 
