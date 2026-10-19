@@ -24,14 +24,46 @@
         .project-row { display: flex; gap: 5px; align-items: center; }
         .project-row select { flex: 1; padding: 6px; border-radius: 4px; border: 1px solid #ccc; font-size: 13px; }
 
+        .sidebar {
+            position: absolute; top: 320px; left: 10px; width: 320px; bottom: 20px;
+            background: white; border-radius: 5px; box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+            z-index: 1000; display: none; flex-direction: column;
+        }
+        .sidebar.active { display: flex; }
+        .sidebar-header { padding: 12px 15px; font-weight: bold; font-size: 15px; border-bottom: 1px solid #ddd; background-color: #f8f9fa; border-top-left-radius: 5px; border-top-right-radius: 5px; color: #333; }
+        .sidebar-content { padding: 15px; flex-grow: 1; overflow-y: auto; }
+        .sidebar-footer { padding: 12px 15px; border-top: 1px solid #ddd; text-align: right; background-color: #f8f9fa; border-bottom-left-radius: 5px; border-bottom-right-radius: 5px; }
+
+        .popup-content { font-size: 13px; max-height: 250px; overflow-y: auto; padding-right: 5px; min-width: 180px; }
+        .popup-btn-container { margin-top: 8px; text-align: right; }
+        
         .btn-custom { color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; transition: 0.2s; box-sizing: border-box;}
+        .btn-edit { background-color: #3498db; } .btn-edit:hover { background-color: #2980b9; }
         .btn-save { background-color: #2ecc71; } .btn-save:hover { background-color: #27ae60; }
         .btn-cancel { background-color: #e74c3c; padding: 6px 8px; font-weight: bold;} .btn-cancel:hover { background-color: #c0392b; }
         .btn-db { background-color: #f39c12; width: 100%; margin-bottom: 6px; font-weight: bold; padding: 7px; font-size: 13px;} .btn-db:hover { background-color: #e67e22; }
         .btn-table { background-color: #9b59b6; width: 100%; margin-bottom: 6px; font-weight: bold; padding: 7px; font-size: 13px;} .btn-table:hover { background-color: #8e44ad; }
+        .btn-report { background-color: #1abc9c; width: 100%; margin-bottom: 6px; font-weight: bold; padding: 7px; font-size: 13px; text-decoration: none; display: block; text-align: center; } .btn-report:hover { background-color: #16a085; }
         
         .edit-input { width: 100%; box-sizing: border-box; padding: 6px 8px; margin-bottom: 8px; font-size: 13px; border: 1px solid #ccc; border-radius: 3px; }
+        .edit-label { font-size: 12px; color: #555; display: block; margin-bottom: 3px; font-weight: bold; }
+        
+        #saving-status { display: none; color: #27ae60; font-weight: bold; font-size: 12px; margin-top: 5px; text-align: center; }
 
+        .table-modal {
+            position: absolute; bottom: 0; left: 0; right: 0; height: 45vh;
+            background: white; z-index: 2000; box-shadow: 0 -4px 15px rgba(0,0,0,0.3);
+            display: none; flex-direction: column; border-top-left-radius: 10px; border-top-right-radius: 10px;
+        }
+        .table-modal.active { display: flex; }
+        .table-header { padding: 12px 20px; background: #2c3e50; color: white; font-weight: bold; display: flex; justify-content: space-between; align-items: center; border-top-left-radius: 10px; border-top-right-radius: 10px; }
+        .table-close-btn { background: none; border: none; color: white; font-size: 18px; cursor: pointer; }
+        .table-body { padding: 15px; flex-grow: 1; overflow: auto; }
+        table.attribute-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        table.attribute-table th, table.attribute-table td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+        table.attribute-table th { background-color: #f2f2f2; position: sticky; top: 0; z-index: 1; }
+        table.attribute-table tr:hover { background-color: #f9f9f9; cursor: pointer; }
+        
         #loading-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.8); z-index: 3000; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 18px; color: #2c3e50; display: none; flex-direction: column; }
         #login-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(44, 62, 80, 0.95); z-index: 9999; display: flex; justify-content: center; align-items: center; }
         .login-box { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); width: 320px; }
@@ -90,6 +122,7 @@
             <div style="font-size: 11px; color: #7f8c8d; margin-top: 3px;">Hỗ trợ Vùng (Polygon) & Tuyến (Polyline)</div>
         </div>
 
+        <button id="openTableBtn" class="btn-custom btn-table" style="display:none;">Mở Bảng Thuộc Tính</button>
         <button id="flightModeBtn" class="btn-custom" style="background-color: #2980b9; width: 100%; margin-bottom: 6px; font-weight: bold; padding: 7px; font-size: 13px;">🚁 Lập lộ trình bay Flycam</button>
         <hr style="margin: 8px 0; border: 0; border-top: 1px solid #ddd;">
         <button id="exportBtn" class="btn-custom btn-save" style="width: 100%; margin: 0; padding: 7px; font-weight: bold; font-size: 13px;">Xuất File Bản Đồ (.geojson)</button>
@@ -97,13 +130,14 @@
 
     <!-- UI Cửa sổ Flight Path PRO (Góc phải) -->
     <div id="flightPanel" class="flight-panel">
-        <h3>🚁 Cấu hình Flycam (V11)
+        <h3>🚁 Cấu hình Flycam (V12)
             <button class="btn-custom btn-cancel" style="padding: 2px 8px; font-size: 12px;" onclick="exitFlightMode()">✕ Đóng</button>
         </h3>
         
         <div class="help-text">
-            <b>HƯỚNG DẪN:</b><br>
-            - Bạn có thể tải lên file mới, hoặc **chọn nhanh từ danh sách dự án đã tải** ở ô bên dưới để làm ranh giới bay.
+            <b>MẸO CHỐNG KẸT VẼ:</b><br>
+            - Bấm <b>✅ Dừng (Lưu)</b> hoặc <b>Đúp Chuột (Double Click)</b> để kết thúc nét vẽ.<br>
+            - Bấm <b>🛑 Hủy (Xóa)</b> hoặc nhấn <b>ESC</b> để hủy bỏ.
         </div>
 
         <!-- Ô chọn nhanh dự án / file đã có sẵn -->
@@ -114,9 +148,14 @@
             </select>
         </div>
 
-        <!-- Nút tải file trực tiếp -->
+        <div class="mode-toggle">
+            <label><input type="radio" name="flightMode" value="polygon" checked onchange="switchDrawMode()"> 🟩 Quét Vùng</label>
+            <label><input type="radio" name="flightMode" value="line" onchange="switchDrawMode()"> 〰️ Chạy Tuyến</label>
+        </div>
+
+        <!-- Các Nút Hành Động Vẽ -->
         <div style="display: flex; gap: 5px; margin-bottom: 5px;" id="drawActionContainer">
-            <button class="btn-custom" style="background: #27ae60; flex: 1; font-weight: bold; padding: 8px;" id="drawBtn" onclick="startDrawing()">📝 Vẽ thủ công</button>
+            <button class="btn-custom" style="background: #27ae60; flex: 1; font-weight: bold; padding: 8px;" id="drawBtn" onclick="startDrawing()">📝 Bắt Đầu Vẽ</button>
             <label class="btn-custom" style="background: #8e44ad; flex: 1; font-weight: bold; padding: 8px; text-align: center; cursor: pointer; display: block; margin: 0;" id="uploadFlightLabel">
                 📂 Tải file mới
                 <input type="file" id="flightGeojsonFile" accept=".geojson, .json" style="display: none;" />
@@ -173,7 +212,7 @@
         L.control.layers({"Hỗn hợp": googleHybrid, "Đường phố": googleRoad, "Vệ tinh": googleSat}, {}, {position: 'topright'}).addTo(map);
         
         var currentGeoJsonLayer = null;
-        var loadedGeoJsonData = null; // Lưu trữ dữ liệu geojson hiện tại để phục vụ chọn nhanh
+        var loadedGeoJsonData = null;
         const API_URL = window.location.origin;
         var currentActiveProject = ""; 
         var defaultStyle = { color: "#3498db", weight: 3, fillColor: "#3498db", fillOpacity: 0.4 };
@@ -194,7 +233,6 @@
                     
                     projects.forEach(p => {
                         let name = p.name || p;
-                        
                         let opt1 = document.createElement('option');
                         opt1.value = name;
                         opt1.innerText = "🗄️ " + name; 
@@ -216,7 +254,6 @@
             }
         }
 
-        // Đồng bộ sync select box
         function syncSelectBoxes(val) {
             document.getElementById('projectSelect').value = val;
             document.getElementById('flightProjectSelect').value = val;
@@ -289,9 +326,8 @@
             }
         });
 
-        // 4. Upload File từ Menu Trái
+        // 4. Upload File từ Menu Trái & Phải
         document.getElementById('geojsonFile').addEventListener('change', function(e) { handleUploadedFile(e.target.files[0], true); this.value = null; });
-        // 7. Upload File từ Panel Flycam
         document.getElementById('flightGeojsonFile').addEventListener('change', function(e) { handleUploadedFile(e.target.files[0], false); this.value = null; });
 
         function handleUploadedFile(file, isMainUpload) {
@@ -329,7 +365,6 @@
 
                     renderDataToMap(geojson, rawName);
                     
-                    // Nếu tải từ panel Flycam thì tự động nhận diện và làm ranh giới luôn
                     if (!isMainUpload && currentGeoJsonLayer) {
                         let layers = currentGeoJsonLayer.getLayers();
                         if(layers.length > 0) {
@@ -348,14 +383,13 @@
             reader.readAsText(file);
         }
 
-        // 8. Chọn nhanh dự án/file có sẵn ngay trong bảng điều khiển Flycam
+        // 5. Chọn nhanh dự án/file có sẵn ngay trong bảng điều khiển Flycam
         async function onSelectExistingProject(sel) {
             let val = sel.value;
             if(!val) return;
             syncSelectBoxes(val);
 
             if(val.startsWith('file_')) {
-                // Nếu là file tạm thời đã tải lên trước đó, nếu có dữ liệu loadedGeoJsonData thì render luôn
                 if(loadedGeoJsonData) {
                     renderDataToMap(loadedGeoJsonData, val);
                     let layers = currentGeoJsonLayer.getLayers();
@@ -364,7 +398,6 @@
                 return;
             }
 
-            // Nếu là dự án từ Database
             currentActiveProject = val;
             document.getElementById('loading-overlay').style.display = 'flex';
             document.getElementById('loading-text').innerText = 'Đang tải dự án từ CSDL...';
@@ -409,7 +442,7 @@
             map.fitBounds(boundaryLayer.getBounds());
         }
 
-        // 5. Nút Xuất File Bản Đồ (.geojson)
+        // 6. Nút Xuất File Bản Đồ (.geojson)
         document.getElementById('exportBtn').addEventListener('click', function() {
             if (!currentGeoJsonLayer) return alert("Bản đồ đang trống, không có gì để xuất!");
             var data = currentGeoJsonLayer.toGeoJSON();
@@ -424,7 +457,7 @@
             URL.revokeObjectURL(url);
         });
 
-        // 6. Xử lý Đăng nhập ảo
+        // 7. Xử lý Đăng nhập ảo
         document.getElementById('loginBtn').addEventListener('click', function() {
             document.getElementById('login-overlay').style.display = 'none'; 
             loadProjects(); 
@@ -432,7 +465,7 @@
 
         loadProjects();
 
-        // === MODULE FLYCAM PRO V11 ===
+        // === MODULE FLYCAM PRO V12 (GIỮ ĐẦY ĐỦ CẢ POLYGON & POLYLINE) ===
         var isFlightMode = false;
         var boundaryLayer = null; 
         var flightPolyline = L.polyline([], {color: '#e74c3c', weight: 3}).addTo(map); 
@@ -564,6 +597,7 @@
                 let geoJSON = boundaryLayer.toGeoJSON();
                 let photoDist = parseFloat(document.getElementById('f_photo_dist').value) || 20; 
 
+                // XỬ LÝ CHẾ ĐỘ CHẠY TUYẾN (POLYLINE) - ĐÃ ĐƯỢC GIỮ NGUYÊN VÀ KHÔI PHỤC ĐẦY ĐỦ
                 if (drawModeType === 'line') {
                     let totalLength = turf.length(geoJSON, {units: 'meters'});
                     let currentDist = 0; let waypoints = [];
@@ -577,6 +611,7 @@
                     if(lastDist > 1) waypoints.push(lastPt);
                     rawWaypoints = waypoints; rawPhotoWaypoints = waypoints; 
                 } else {
+                    // XỬ LÝ CHẾ ĐỘ QUÉT VÙNG (POLYGON)
                     let spacing = parseFloat(document.getElementById('f_space').value) || 30; 
                     let overshoot = parseFloat(document.getElementById('f_overshoot').value) || 15; 
                     let angle = parseInt(document.getElementById('f_angle').value) || 0; 
@@ -732,7 +767,7 @@
             
             var blob = new Blob([kml], { type: "application/vnd.google-earth.kml+xml" });
             var url = URL.createObjectURL(blob);
-            var a = document.createElement('a'); a.href = url; a.download = (currentActiveProject || "DuAn") + "_FlightPlan.kml";
+            var a = document.createElement('a'); a.href = url; a.download = (currentActiveProject || "DuAn") + "_FlightPlan.KML";
             document.body.appendChild(a); a.click(); document.body.removeChild(a); window.URL.revokeObjectURL(url);
         }
 
