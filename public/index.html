@@ -330,10 +330,20 @@
 
             reader.onload = function(event) { 
                 try { 
-                    var geojson = JSON.parse(event.target.result); 
+                    let textContent = event.target.result.trim();
+                    // Làm sạch các ký tự BOM hoặc khoảng trắng thừa dễ gây lỗi cú pháp JSON
+                    if (textContent.charCodeAt(0) === 0xFEFF) {
+                        textContent = textContent.slice(1);
+                    }
+                    var geojson = JSON.parse(textContent); 
                     document.getElementById('loading-overlay').style.display='none';
                     
-                    let rawName = file.name.replace('.geojson', '').replace('.json', '');
+                    // Kiểm tra cơ bản cấu trúc GeoJSON hợp lệ
+                    if (!geojson.type) {
+                        throw new Error("File không chứa thuộc tính 'type' của GeoJSON.");
+                    }
+
+                    let rawName = file.name.replace(/\.[^/.]+$/, "");
                     let projId = 'file_' + rawName;
                     currentActiveProject = rawName; 
                     loadedGeoJsonData = geojson;
@@ -359,11 +369,16 @@
                     autoProcessFlightPlan();
                     alert("Đã tải file và tự động xử lý đường bay thành công!");
                 } catch (err) { 
-                    alert("Định dạng file không hợp lệ hoặc lỗi cấu trúc JSON!"); 
                     document.getElementById('loading-overlay').style.display='none'; 
+                    console.error("JSON Parse Error:", err);
+                    alert("⚠️ Lỗi đọc file JSON/GeoJSON: " + err.message + "\nVui lòng kiểm tra lại cấu trúc file!");
                 } 
             }; 
-            reader.readAsText(file);
+            reader.onerror = function() {
+                document.getElementById('loading-overlay').style.display='none';
+                alert("⚠️ Không thể đọc file từ thiết bị!");
+            };
+            reader.readAsText(file, "UTF-8");
         }
 
         async function onSelectExistingProject(sel) {
