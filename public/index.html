@@ -752,7 +752,9 @@
         function bindLayerClick(layer, feature) {
             layer.on('click', function(e) { 
                 if (isFlightMode) {
+                    L.DomEvent.stopPropagation(e);
                     setBoundaryFromFeature(feature);
+                    alert("Đã chọn đối tượng trên bản đồ để lập đường bay!");
                     return;
                 }
             });
