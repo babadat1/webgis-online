@@ -367,16 +367,7 @@
 
                     renderDataToMap(geojson, rawName);
                     
-                    if (currentGeoJsonLayer) {
-                        let layers = currentGeoJsonLayer.getLayers();
-                        if(layers.length > 0) {
-                            let feature = layers[0].feature;
-                            setBoundaryFromFeature(feature);
-                            // Tự động sinh đường bay luôn
-                            generateGridPath();
-                            alert("Đã tự động xử lý và tạo xong đường bay từ file! Bạn có thể xuất KML ngay.");
-                        }
-                    }
+                    setTimeout(() => { processLoadedBoundary(); }, 300);
                 } catch (err) { 
                     alert("Định dạng file không hợp lệ hoặc lỗi cấu trúc JSON!"); 
                     document.getElementById('loading-overlay').style.display='none'; 
@@ -420,14 +411,8 @@
                 }
             }
 
-            // Tự động nhận diện và chạy đường bay luôn không cần vẽ
-            if (currentGeoJsonLayer) {
-                let layers = currentGeoJsonLayer.getLayers();
-                if(layers.length > 0) {
-                    setBoundaryFromFeature(layers[0].feature);
-                    generateGridPath();
-                }
-            }
+            // Tự động xử lý đường bay luôn
+            setTimeout(() => { processLoadedBoundary(); }, 300);
         }
 
         function setBoundaryFromFeature(feature) {
@@ -802,17 +787,42 @@
 
         
         function processLoadedBoundary() {
+            // Kiểm tra nếu có currentGeoJsonLayer
             if (currentGeoJsonLayer) {
                 let layers = currentGeoJsonLayer.getLayers();
                 if(layers.length > 0) {
-                    let feature = layers[0].feature;
-                    setBoundaryFromFeature(feature);
+                    let targetLayer = layers[0];
+                    // Nếu layer nhóm (FeatureGroup), tìm lớp con đầu tiên có feature
+                    if (typeof targetLayer.getLayers === 'function') {
+                        let subLayers = targetLayer.getLayers();
+                        if (subLayers.length > 0) targetLayer = subLayers[0];
+                    }
+                    if (targetLayer.feature) {
+                        setBoundaryFromFeature(targetLayer.feature);
+                        generateGridPath();
+                        alert("Đã xử lý xong đường bay từ dữ liệu! Sẵn sàng xuất KML.");
+                        return;
+                    }
+                }
+            }
+            // Nếu vẫn chưa bắt được qua layer, thử lấy trực tiếp từ loadedGeoJsonData
+            if (loadedGeoJsonData) {
+                let feat = null;
+                if (loadedGeoJsonData.type === 'FeatureCollection' && loadedGeoJsonData.features && loadedGeoJsonData.features.length > 0) {
+                    feat = loadedGeoJsonData.features[0];
+                } else if (loadedGeoJsonData.type === 'Feature') {
+                    feat = loadedGeoJsonData;
+                } else if (loadedGeoJsonData.geometry) {
+                    feat = { type: "Feature", geometry: loadedGeoJsonData.geometry, properties: {} };
+                }
+                if (feat) {
+                    setBoundaryFromFeature(feat);
                     generateGridPath();
-                    alert("Đã xử lý xong đường bay từ dữ liệu file/dự án! Sẵn sàng xuất KML.");
+                    alert("Đã xử lý xong đường bay từ dữ liệu dự án! Sẵn sàng xuất KML.");
                     return;
                 }
             }
-            alert("Chưa có file hoặc dự án nào được tải lên/chọn!");
+            alert("⚠️ Chưa tìm thấy dữ liệu ranh giới trên bản đồ! Vui lòng chọn dự án hoặc tải file GeoJSON trước.");
         }
 
         L.control.scale({imperial: false, position: 'bottomleft'}).addTo(map);
