@@ -162,6 +162,7 @@
                 <input type="file" id="flightGeojsonFile" accept=".geojson, .json" style="display: none;" />
             </label>
         </div>
+        <button class="btn-custom" style="background: #16a085; width: 100%; font-weight: bold; padding: 8px; margin-bottom: 5px;" onclick="autoProcessUploadedFileFeature()">⚡ Tự động vẽ đường bay từ File đã nhập</button>
         
         <div style="display: flex; gap: 5px; margin-bottom: 5px;">
             <button class="btn-custom" style="background: #3498db; flex: 1; font-weight: bold; padding: 8px; display: none;" id="finishDrawBtn" onclick="finishDrawing()">✅ Dừng (Lưu)</button>
@@ -771,6 +772,44 @@
             }); 
             currentGeoJsonLayer.addTo(map); 
             if (currentGeoJsonLayer.getBounds().isValid()) map.fitBounds(currentGeoJsonLayer.getBounds()); 
+        }
+
+        function autoProcessUploadedFileFeature() {
+            if (!loadedGeoJsonData) {
+                alert("Chưa có file GeoJSON nào được nhập! Vui lòng tải file hoặc chọn dự án trước.");
+                return;
+            }
+            let targetFeature = null;
+            if (loadedGeoJsonData.type === 'FeatureCollection' && loadedGeoJsonData.features && loadedGeoJsonData.features.length > 0) {
+                targetFeature = loadedGeoJsonData.features[0];
+            } else if (loadedGeoJsonData.type === 'Feature') {
+                targetFeature = loadedGeoJsonData;
+            } else if (loadedGeoJsonData.geometry) {
+                targetFeature = { type: "Feature", geometry: loadedGeoJsonData.geometry, properties: {} };
+            }
+
+            if (!targetFeature) {
+                alert("Không tìm thấy đối tượng hợp lệ trong file!");
+                return;
+            }
+
+            let geomType = targetFeature.geometry.type;
+            if (geomType.includes('Line')) {
+                document.querySelector('input[name="flightMode"][value="line"]').checked = true;
+            } else {
+                document.querySelector('input[name="flightMode"][value="polygon"]').checked = true;
+            }
+            switchDrawMode();
+
+            if (boundaryLayer) map.removeLayer(boundaryLayer);
+            boundaryLayer = L.geoJSON(targetFeature.geometry, {
+                style: { color: geomType.includes('Line') ? '#f1c40f' : '#ffffff', weight: 3, dashArray: '5, 5', fillOpacity: 0 }
+            }).getLayers()[0].addTo(map);
+
+            handleNewBoundary(boundaryLayer);
+            resetDrawUI();
+            map.fitBounds(boundaryLayer.getBounds());
+            alert("Đã tự động vẽ và tạo đường bay từ file thành công!");
         }
 
         L.control.scale({imperial: false, position: 'bottomleft'}).dstAddTo ? L.control.scale({imperial: false, position: 'bottomleft'}).addTo(map) : L.control.scale({imperial: false, position: 'bottomleft'}).addTo(map);
