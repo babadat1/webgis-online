@@ -684,12 +684,18 @@
             
             photoCoords.forEach((latlng, index) => {
                 let wpNum = index + 1; let isStart = (index === 0);
-                let marker = L.circleMarker(latlng, { 
-                    radius: isStart ? 6 : 5, 
-                    color: '#e67e22', 
-                    weight: 2, 
-                    fillColor: '#f1c40f', 
-                    fillOpacity: 1,
+                
+                // Sử dụng L.marker với DivIcon để hỗ trợ kéo thả (draggable: true) chuẩn xác 100% trong Leaflet
+                let iconHtml = `<div style="width: ${isStart ? '14px' : '12px'}; height: ${isStart ? '14px' : '12px'}; background: #f1c40f; border: 2px solid #e67e22; border-radius: 50%; box-shadow: 0 0 4px rgba(0,0,0,0.5); cursor: pointer;"></div>`;
+                let customIcon = L.divIcon({
+                    html: iconHtml,
+                    className: 'custom-wp-icon',
+                    iconSize: [isStart ? 14 : 12, isStart ? 14 : 12],
+                    iconAnchor: [isStart ? 7 : 6, isStart ? 7 : 6]
+                });
+
+                let marker = L.marker(latlng, { 
+                    icon: customIcon,
                     draggable: true 
                 });
                 
@@ -697,7 +703,7 @@
                 let tooltipText = isStart ? `Bắt đầu (1) [Kéo/Xóa]` : `${wpNum} [Kéo/Xóa]`;
                 marker.bindTooltip(tooltipText, {permanent: true, direction: 'right', className: tooltipClass});
                 
-                // Cho phép kéo thả điểm ảnh để di chuyển
+                // Sự kiện kéo thả điểm ảnh để di chuyển mượt mà
                 marker.on('dragend', function(e) {
                     let newLatLng = e.target.getLatLng();
                     rawPhotoWaypoints[index] = [newLatLng.lng, newLatLng.lat];
@@ -705,7 +711,7 @@
                     renderFlightPath();
                 });
 
-                // Click đúp hoặc click chuột phải vào điểm ảnh để xóa điểm đó
+                // Click chuột phải (hoặc nhấn giữ) để xóa điểm ảnh
                 marker.on('contextmenu', function(e) {
                     L.DomEvent.stopPropagation(e);
                     if (confirm("Bạn có muốn xóa điểm chụp ảnh số " + wpNum + " này không?")) {
@@ -714,6 +720,11 @@
                         renderFlightPath();
                         alert("Đã xóa điểm chụp ảnh số " + wpNum);
                     }
+                });
+
+                // Thêm sự kiện click đơn để dễ chọn hoặc thông báo
+                marker.on('click', function(e) {
+                    L.DomEvent.stopPropagation(e);
                 });
 
                 flightMarkers.addLayer(marker);
