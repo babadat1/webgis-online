@@ -189,9 +189,9 @@
         </h3>
         
         <div class="help-text">
-            <b>1.</b> Bấm <b>"Vẽ vùng bay"</b> để tạo khung giới hạn.<br>
-            <b>2.</b> Có thể <b>kéo đỉnh</b> hoặc <b>bấm điểm mờ giữa cạnh</b> để chèn thêm đỉnh mới.<br>
-            <b>3.</b> Đường bay tự động vòng ra ngoài biên để đảm bảo ảnh không bị sót mép.
+            <b>1.</b> Bấm <b>"Vẽ vùng bay"</b> để khoanh ranh giới.<br>
+            <b>2.</b> Hệ thống tự động phủ lưới kín đến tận các <b>mũi nhọn/góc hẹp</b>.<br>
+            <b>3.</b> Lộ trình sẽ vòng <b>bo tròn</b> khi quay đầu ngoài ranh giới.
         </div>
 
         <button class="btn-custom" style="background: #27ae60; width: 100%; font-weight: bold; padding: 8px;" onclick="startDrawingBoundary()">📝 Vẽ vùng bay (Boundary)</button>
@@ -260,7 +260,7 @@
         var defaultStyle = { color: "#3498db", weight: 2, fillColor: "#3498db", fillOpacity: 0.4 };
         var highlightStyle = { color: "#e74c3c", weight: 4, fillColor: "#e74c3c", fillOpacity: 0.7 };
 
-        // === MODULE FLYCAM PRO (Turf.js + Geoman) ===
+        // === MODULE FLYCAM PRO V5 (Turf.js + Geoman) ===
         var isFlightMode = false;
         var boundaryLayer = null; 
         var flightPolyline = L.polyline([], {color: '#3498db', weight: 3}).addTo(map);
@@ -317,15 +317,15 @@
             map.pm.disableDraw();
         }
 
-        // --- THUẬT TOÁN TÍNH ĐƯỜNG BAY QUÉT LUỐNG + OVERSHOOT + PHOTO POINTS ---
+        // --- THUẬT TOÁN BAO TRỌN GÓC & BO TRÒN GÓC QUAY ---
         function generateGridPath() {
             if(!boundaryLayer) return;
 
             try {
                 let polyGeoJSON = boundaryLayer.toGeoJSON();
-                let spacing = parseFloat(document.getElementById('f_space').value) || 30; // Khoảng cách luống
-                let photoDist = parseFloat(document.getElementById('f_photo_dist').value) || 20; // Khoảng cách ảnh
-                let overshoot = parseFloat(document.getElementById('f_overshoot').value) || 15; // Khoảng cách bay lố ra ngoài
+                let spacing = parseFloat(document.getElementById('f_space').value) || 30; 
+                let photoDist = parseFloat(document.getElementById('f_photo_dist').value) || 20; 
+                let overshoot = parseFloat(document.getElementById('f_overshoot').value) || 15; 
                 let angle = parseInt(document.getElementById('f_angle').value) || 0; 
 
                 let centerPt = turf.centerOfMass(polyGeoJSON);
@@ -333,16 +333,22 @@
                 let bbox = turf.bbox(rotatedPoly); 
                 
                 let deltaLat = spacing / 111320; 
-                let currentLat = bbox[3]; 
                 let minLat = bbox[1];
+                let maxLat = bbox[3];
                 let minLng = bbox[0] - 0.05; 
                 let maxLng = bbox[2] + 0.05;
 
-                let isLeftToRight = true;
-                let rawWaypoints = [];
+                let rows = [];
+                let currentLat = maxLat;
+                
+                // Đảm bảo trùm kín cực Bắc và cực Nam (Bao trọn các mũi nhọn)
+                while(currentLat >= minLat - 0.00001) {
+                    let queryLat = currentLat;
+                    // Lùi vào 1 chút xíu (khoảng 1 mét) nếu đang ở chính xác mép để Turf cắt được đường thẳng
+                    if (Math.abs(queryLat - maxLat) < 0.000001) queryLat = maxLat - 0.00001;
+                    if (Math.abs(queryLat - minLat) < 0.000001) queryLat = minLat + 0.00001;
 
-                while(currentLat >= minLat) {
-                    let scanLine = turf.lineString([[minLng, currentLat], [maxLng, currentLat]]);
+                    let scanLine = turf.lineString([[minLng, queryLat], [maxLng, queryLat]]);
                     let intersects = turf.lineIntersect(scanLine, rotatedPoly);
                     
                     if(intersects.features.length >= 2) {
@@ -352,21 +358,20 @@
                         let pWest = pts[0];
                         let pEast = pts[pts.length-1];
 
-                        // Quy đổi overshoot từ mét sang độ kinh độ (tương đối theo vĩ độ hiện tại)
-                        let cosLat = Math.cos(currentLat * Math.PI / 180);
+                        let cosLat = Math.cos(queryLat * Math.PI / 180);
                         let overshootLng = (overshoot / 111320) / cosLat;
 
-                        // Kéo dài điểm giao cắt ra ngoài (vòng ra ngoài)
-                        let extWest = [pWest[0] - overshootLng, pWest[1]];
-                        let extEast = [pEast[0] + overshootLng, pEast[1]];
+                        // Kéo dài ra ngoài ranh giới
+                        let extWest = [pWest[0] - overshootLng, queryLat];
+                        let extEast = [pEast[0] + overshootLng, queryLat];
 
                         let segment = turf.lineString([extWest, extEast]);
-                        let segLength = turf.length(segment, {units: 'meters'});
+                        let segLength = turf.distance(turf.point(extWest), turf.point(extEast), {units: 'meters'});
 
                         let linePoints = [];
-                        linePoints.push(extWest); // Điểm bắt đầu luống (nằm ngoài vùng)
+                        linePoints.push(extWest); 
 
-                        // Nội suy các điểm cách nhau đúng 'Khoảng cách ảnh' dọc theo đoạn thẳng
+                        // Rải điểm chụp ảnh trên luống thẳng
                         let currentDist = photoDist;
                         while(currentDist < segLength) {
                             let pt = turf.along(segment, currentDist, {units: 'meters'});
@@ -374,24 +379,50 @@
                             currentDist += photoDist;
                         }
                         
-                        // Đảm bảo điểm cuối luống cũng được thêm vào
                         let lastPtDist = turf.distance(turf.point(linePoints[linePoints.length-1]), turf.point(extEast), {units: 'meters'});
                         if(lastPtDist > 1) { 
                             linePoints.push(extEast);
                         }
 
-                        // Sắp xếp thứ tự luống zic-zắc
-                        if(isLeftToRight) {
-                            rawWaypoints.push(...linePoints);
-                        } else {
-                            rawWaypoints.push(...linePoints.reverse());
-                        }
-                        isLeftToRight = !isLeftToRight;
+                        rows.push(linePoints);
                     }
                     currentLat -= deltaLat;
                 }
 
-                if(rawWaypoints.length < 2) return;
+                if(rows.length < 2) return;
+
+                // Nối các luống bằng vòng cung (Bo tròn)
+                let rawWaypoints = [];
+                let isLeftToRight = true;
+
+                for (let i = 0; i < rows.length; i++) {
+                    let currentRow = rows[i];
+                    let orderedRow = isLeftToRight ? currentRow : [...currentRow].reverse();
+                    
+                    if (i > 0) {
+                        let A = rawWaypoints[rawWaypoints.length - 1]; // Cuối luống trước
+                        let B = orderedRow[0]; // Đầu luống này
+                        
+                        let isEastTurn = !isLeftToRight; 
+                        let sign = isEastTurn ? 1 : -1;
+                        
+                        let H = Math.abs(A[1] - B[1]) / 2; // Bán kính quay (theo trục Y)
+                        let cosLat = Math.cos(A[1] * Math.PI / 180);
+                        let H_lng = H / cosLat;
+                        
+                        // Nội suy nửa hình sin để tạo độ cong mượt
+                        let numTurnPoints = 8;
+                        for (let j = 1; j < numTurnPoints; j++) {
+                            let t = j / numTurnPoints;
+                            let turnLng = A[0] + (B[0] - A[0]) * t + sign * H_lng * Math.sin(Math.PI * t);
+                            let turnLat = A[1] + (B[1] - A[1]) * t;
+                            rawWaypoints.push([turnLng, turnLat]);
+                        }
+                    }
+                    
+                    rawWaypoints.push(...orderedRow);
+                    isLeftToRight = !isLeftToRight;
+                }
 
                 let pathLineString = turf.lineString(rawWaypoints);
                 let finalPath = turf.transformRotate(pathLineString, angle, {pivot: centerPt});
@@ -401,8 +432,17 @@
                 
                 flightPolyline.setLatLngs(leafletCoords);
                 
+                // Vẽ Marker chụp ảnh (Chỉ lấy điểm từ luống, bỏ qua điểm nội suy lúc bo góc)
+                let photoWaypoints = [];
+                for (let i = 0; i < rows.length; i++) {
+                    photoWaypoints.push(...rows[i]);
+                }
+                
+                let rotatedPhotoPts = turf.transformRotate(turf.points(photoWaypoints), angle, {pivot: centerPt});
+                let photoCoords = rotatedPhotoPts.features.map(f => [f.geometry.coordinates[1], f.geometry.coordinates[0]]);
+                
                 flightMarkers.clearLayers();
-                leafletCoords.forEach((latlng, index) => {
+                photoCoords.forEach((latlng, index) => {
                     let isStart = (index === 0);
                     let radius = isStart ? 5 : 2.5;
                     let color = isStart ? '#2ecc71' : '#ffffff';
