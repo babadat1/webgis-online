@@ -131,7 +131,7 @@
 
     <!-- UI Cửa sổ Flight Path PRO (Góc phải) -->
     <div id="flightPanel" class="flight-panel">
-        <h3>🚁 Cấu hình Flycam (V9)
+        <h3>🚁 Cấu hình Flycam (V10)
             <button class="btn-custom btn-cancel" style="padding: 2px 8px; font-size: 12px;" onclick="exitFlightMode()">✕ Đóng</button>
         </h3>
         
@@ -147,8 +147,12 @@
         </div>
 
         <!-- Các Nút Hành Động Vẽ -->
-        <div style="display: flex; gap: 5px; margin-bottom: 5px;">
-            <button class="btn-custom" style="background: #27ae60; width: 100%; font-weight: bold; padding: 8px;" id="drawBtn" onclick="startDrawing()">📝 Bắt Đầu Vẽ</button>
+        <div style="display: flex; gap: 5px; margin-bottom: 5px;" id="drawActionContainer">
+            <button class="btn-custom" style="background: #27ae60; flex: 1; font-weight: bold; padding: 8px;" id="drawBtn" onclick="startDrawing()">📝 Bắt Đầu Vẽ</button>
+            <label class="btn-custom" style="background: #8e44ad; flex: 1; font-weight: bold; padding: 8px; text-align: center; cursor: pointer; display: block; margin: 0;" id="uploadFlightLabel">
+                📂 Chọn .geojson
+                <input type="file" id="flightGeojsonFile" accept=".geojson, .json" style="display: none;" />
+            </label>
         </div>
         
         <div style="display: flex; gap: 5px; margin-bottom: 5px;">
@@ -215,21 +219,16 @@
                     let projects = await response.json();
                     let select = document.getElementById('projectSelect');
                     
-                    // Giữ lại các mục do người dùng Upload từ file cục bộ (nếu có)
                     let existingUploads = Array.from(select.options).filter(opt => opt.value.startsWith('file_'));
-                    
                     select.innerHTML = '<option value="">-- Chọn dự án --</option>';
                     
-                    // Nạp dự án từ CSDL
                     projects.forEach(p => {
                         let opt = document.createElement('option');
                         let name = p.name || p;
                         opt.value = name;
-                        opt.innerText = "🗄️ " + name; // Đánh dấu icon là hàng từ DB
+                        opt.innerText = "🗄️ " + name; 
                         select.appendChild(opt);
                     });
-                    
-                    // Thêm lại dự án Upload
                     existingUploads.forEach(opt => select.appendChild(opt));
                 }
             } catch (err) {
@@ -241,12 +240,7 @@
         document.getElementById('loadDbBtn').addEventListener('click', async function() {
             let projectName = document.getElementById('projectSelect').value;
             if (!projectName) { alert("Vui lòng chọn một dự án trong danh sách!"); return; }
-            
-            // Nếu người dùng chọn một file vừa Upload thì không cần fetch DB
-            if (projectName.startsWith('file_')) {
-                alert("Đây là file bạn vừa tải lên từ máy tính, bản đồ đã được hiển thị sẵn.");
-                return;
-            }
+            if (projectName.startsWith('file_')) { alert("Đây là file bạn vừa tải lên từ máy tính, bản đồ đã được hiển thị sẵn."); return; }
 
             currentActiveProject = projectName;
             document.getElementById('loading-overlay').style.display = 'flex';
@@ -274,7 +268,6 @@
             let projectName = document.getElementById('projectSelect').value;
             if (!projectName) return alert("Vui lòng chọn dự án cần xóa!");
             
-            // Xóa dự án Upload tạm thời
             if (projectName.startsWith('file_')) {
                  if (confirm("Xóa file tải lên này khỏi màn hình?")) {
                      if (currentGeoJsonLayer) map.removeLayer(currentGeoJsonLayer);
@@ -286,14 +279,13 @@
                  return;
             }
 
-            // Xóa dự án thật trong Database
             if (!confirm("⚠️ BẠN CÓ CHẮC CHẮN MUỐN XÓA DỰ ÁN: " + projectName + " KHỎI CƠ SỞ DỮ LIỆU?")) return;
             
             try {
                 let response = await fetch(API_URL + '/api/projects/' + projectName, { method: 'DELETE' });
                 if (response.ok) {
                     alert("Đã xóa dự án thành công!");
-                    loadProjects(); // Làm mới danh sách
+                    loadProjects(); 
                     if (currentActiveProject === projectName && currentGeoJsonLayer) {
                         map.removeLayer(currentGeoJsonLayer);
                         currentActiveProject = "";
@@ -307,7 +299,7 @@
             }
         });
 
-        // 4. Khôi phục Upload File và Đưa vào Select Box
+        // 4. Khôi phục Upload File và Đưa vào Select Box (Panel bên trái)
         document.getElementById('geojsonFile').addEventListener('change', function(e) { 
             var file = e.target.files[0]; if (!file) return; 
             var reader = new FileReader(); document.getElementById('loading-overlay').style.display='flex';
@@ -318,13 +310,11 @@
                     var geojson = JSON.parse(event.target.result); 
                     document.getElementById('loading-overlay').style.display='none';
                     
-                    // --- CẬP NHẬT SELECT BOX (Khắc phục lỗi không hiện dự án đã tải lên) ---
                     let rawName = file.name.replace('.geojson', '').replace('.json', '');
                     let projId = 'file_' + rawName;
-                    currentActiveProject = rawName; // Set tên gốc làm tên đang active
+                    currentActiveProject = rawName; 
                     
                     let select = document.getElementById('projectSelect');
-                    // Kiểm tra xem tên này đã có trong danh sách chưa
                     let exists = Array.from(select.options).some(opt => opt.value === projId);
                     if(!exists) {
                         let opt = document.createElement('option');
@@ -332,8 +322,7 @@
                         opt.innerText = "📁 " + rawName + " (File tải lên)";
                         select.appendChild(opt);
                     }
-                    select.value = projId; // Tự động chọn dự án này
-                    // ----------------------------------------------------------------------
+                    select.value = projId; 
 
                     renderDataToMap(geojson, rawName);
                     alert("Tải file GeoJSON thành công! Bạn có thể bật Lập lộ trình bay và click vào tuyến/vùng vừa tải.");
@@ -343,7 +332,7 @@
                 } 
             }; 
             reader.readAsText(file); 
-            this.value = null; // Reset input để có thể chọn lại file cũ nếu muốn
+            this.value = null; 
         });
 
         // 5. Khôi phục Nút Xuất File Bản Đồ (.geojson)
@@ -364,13 +353,12 @@
         // 6. Xử lý Đăng nhập ảo
         document.getElementById('loginBtn').addEventListener('click', function() {
             document.getElementById('login-overlay').style.display = 'none'; 
-            loadProjects(); // Sau khi vào được hệ thống thì gọi lệnh nạp danh sách dự án
+            loadProjects(); 
         });
 
-        // Gọi thử một lần khi web vừa mở
         loadProjects();
 
-        // === MODULE FLYCAM PRO V9 (CHỐNG KẸT + KẾT HỢP DỮ LIỆU) ===
+        // === MODULE FLYCAM PRO V10 (CHỐNG KẸT + UPLOAD NHANH) ===
         var isFlightMode = false;
         var boundaryLayer = null; 
         var flightPolyline = L.polyline([], {color: '#e74c3c', weight: 3}).addTo(map); 
@@ -414,6 +402,9 @@
 
         function resetDrawUI() {
             document.getElementById('drawBtn').style.display = 'block';
+            let uploadBtn = document.getElementById('uploadFlightLabel');
+            if(uploadBtn) uploadBtn.style.display = 'block';
+            
             document.getElementById('finishDrawBtn').style.display = 'none';
             document.getElementById('cancelDrawBtn').style.display = 'none';
             if (boundaryLayer) {
@@ -454,6 +445,9 @@
 
         map.on('pm:drawstart', function(e) {
             document.getElementById('drawBtn').style.display = 'none';
+            let uploadBtn = document.getElementById('uploadFlightLabel');
+            if(uploadBtn) uploadBtn.style.display = 'none';
+            
             document.getElementById('finishDrawBtn').style.display = 'block';
             document.getElementById('cancelDrawBtn').style.display = 'block';
             document.getElementById('clearBoundaryBtn').style.display = 'none';
@@ -688,7 +682,6 @@
                     return;
                 }
                 
-                // Tránh lỗi click bản đồ nếu biến chưa định nghĩa ở bản rút gọn
                 try { if (isEditMode) return; } catch(err) {}
             });
         }
@@ -705,6 +698,69 @@
             currentGeoJsonLayer.addTo(map); 
             if (currentGeoJsonLayer.getBounds().isValid()) map.fitBounds(currentGeoJsonLayer.getBounds()); 
         }
+
+        // 7. Xử lý tải file trực tiếp từ Panel Flycam
+        document.getElementById('flightGeojsonFile').addEventListener('change', function(e) { 
+            var file = e.target.files[0]; if (!file) return; 
+            var reader = new FileReader(); document.getElementById('loading-overlay').style.display='flex';
+            document.getElementById('loading-text').innerText = 'Đang xử lý file...';
+
+            reader.onload = function(event) { 
+                try { 
+                    var geojson = JSON.parse(event.target.result); 
+                    document.getElementById('loading-overlay').style.display='none';
+                    
+                    // --- CẬP NHẬT SELECT BOX ---
+                    let rawName = file.name.replace('.geojson', '').replace('.json', '');
+                    let projId = 'file_' + rawName;
+                    currentActiveProject = rawName; 
+                    
+                    let select = document.getElementById('projectSelect');
+                    let exists = Array.from(select.options).some(opt => opt.value === projId);
+                    if(!exists) {
+                        let opt = document.createElement('option');
+                        opt.value = projId;
+                        opt.innerText = "📁 " + rawName + " (File tải lên)";
+                        select.appendChild(opt);
+                    }
+                    select.value = projId; 
+
+                    renderDataToMap(geojson, rawName);
+                    
+                    // TỰ ĐỘNG CHỌN LÀM ĐƯỜNG BAY
+                    if (currentGeoJsonLayer) {
+                        let layers = currentGeoJsonLayer.getLayers();
+                        if(layers.length > 0) {
+                            // Lấy tính năng (feature) đầu tiên trong file để làm ranh giới
+                            let firstLayer = layers[0];
+                            let feature = firstLayer.feature;
+                            
+                            if (boundaryLayer) map.removeLayer(boundaryLayer);
+                            boundaryLayer = L.geoJSON(feature.geometry, {
+                                style: { color: feature.geometry.type.includes('Line') ? '#f1c40f' : '#ffffff', weight: 3, dashArray: '5, 5', fillOpacity: 0 }
+                            }).getLayers()[0].addTo(map);
+                            
+                            if (feature.geometry.type === 'LineString' || feature.geometry.type === 'MultiLineString') {
+                                document.querySelector('input[name="flightMode"][value="line"]').checked = true;
+                            } else {
+                                document.querySelector('input[name="flightMode"][value="polygon"]').checked = true;
+                            }
+                            switchDrawMode();
+                            handleNewBoundary(boundaryLayer);
+                            resetDrawUI();
+                            
+                            map.fitBounds(boundaryLayer.getBounds());
+                            alert("Đã tải lên và tự động chọn làm ranh giới bay!");
+                        }
+                    }
+                } catch (err) { 
+                    alert("Định dạng file không hợp lệ!"); 
+                    document.getElementById('loading-overlay').style.display='none'; 
+                } 
+            }; 
+            reader.readAsText(file); 
+            this.value = null; 
+        });
 
         L.control.scale({imperial: false, position: 'bottomleft'}).addTo(map);
     </script>
