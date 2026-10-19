@@ -133,14 +133,14 @@
 
     <!-- UI Cửa sổ Flight Path PRO (Góc phải) -->
     <div id="flightPanel" class="flight-panel">
-        <h3>🚁 Cấu hình Flycam (V7)
+        <h3>🚁 Cấu hình Flycam (V8)
             <button class="btn-custom btn-cancel" style="padding: 2px 8px; font-size: 12px;" onclick="exitFlightMode()">✕ Đóng</button>
         </h3>
         
         <div class="help-text">
             <b>MẸO CHỐNG KẸT VẼ:</b><br>
-            - Bấm <b>Đúp Chuột (Double Click)</b> để kết thúc nét vẽ.<br>
-            - Nhấn phím <b>ESC</b> để hủy bỏ đường đang vẽ dở.
+            - Bấm <b>✅ Dừng (Lưu)</b> hoặc <b>Đúp Chuột (Double Click)</b> để kết thúc nét vẽ và giữ kết quả.<br>
+            - Bấm <b>🛑 Hủy (Xóa)</b> hoặc nhấn <b>ESC</b> để hủy bỏ đường đang vẽ.
         </div>
 
         <div class="mode-toggle">
@@ -148,11 +148,17 @@
             <label><input type="radio" name="flightMode" value="line" onchange="switchDrawMode()"> 〰️ Chạy Tuyến</label>
         </div>
 
-        <div style="display: flex; gap: 5px;">
-            <button class="btn-custom" style="background: #27ae60; flex: 1; font-weight: bold; padding: 8px;" id="drawBtn" onclick="startDrawing()">📝 Bắt Đầu Vẽ</button>
-            <button class="btn-custom" style="background: #e67e22; flex: 1; font-weight: bold; padding: 8px; display: none;" id="cancelDrawBtn" onclick="cancelDrawing()">🛑 Dừng/Hủy vẽ</button>
-            <button class="btn-custom" style="background: #e74c3c; font-weight: bold; padding: 8px; display: none;" id="clearBoundaryBtn" onclick="clearBoundary()">🗑 Xóa ranh giới</button>
+        <!-- Các Nút Hành Động Vẽ -->
+        <div style="display: flex; gap: 5px; margin-bottom: 5px;">
+            <button class="btn-custom" style="background: #27ae60; width: 100%; font-weight: bold; padding: 8px;" id="drawBtn" onclick="startDrawing()">📝 Bắt Đầu Vẽ</button>
         </div>
+        
+        <div style="display: flex; gap: 5px; margin-bottom: 5px;">
+            <button class="btn-custom" style="background: #3498db; flex: 1; font-weight: bold; padding: 8px; display: none;" id="finishDrawBtn" onclick="finishDrawing()">✅ Dừng (Lưu)</button>
+            <button class="btn-custom" style="background: #e74c3c; flex: 1; font-weight: bold; padding: 8px; display: none;" id="cancelDrawBtn" onclick="cancelDrawing()">🛑 Hủy (Xóa)</button>
+        </div>
+        
+        <button class="btn-custom" style="background: #c0392b; width: 100%; font-weight: bold; padding: 8px; display: none; margin-bottom: 5px;" id="clearBoundaryBtn" onclick="clearBoundary()">🗑 Xóa ranh giới vừa tạo</button>
         
         <button class="btn-custom" style="background: #f39c12; width: 100%; font-weight: bold; padding: 8px;" onclick="reverseFlightPath()">🔄 Đảo chiều Bắt đầu / Kết thúc</button>
 
@@ -204,7 +210,7 @@
         var currentActiveProject = ""; 
         var defaultStyle = { color: "#3498db", weight: 3, fillColor: "#3498db", fillOpacity: 0.4 };
 
-        // === MODULE FLYCAM PRO V7 ===
+        // === MODULE FLYCAM PRO V8 ===
         var isFlightMode = false;
         var boundaryLayer = null; 
         var flightPolyline = L.polyline([], {color: '#e74c3c', weight: 3}).addTo(map); // Màu đỏ cho đường bay
@@ -227,7 +233,7 @@
 
         function exitFlightMode() {
             isFlightMode = false;
-            cancelDrawing(); // Force stop drawing if active
+            cancelDrawing();
             document.getElementById('flightPanel').style.display = 'none';
             document.getElementById('mainTools').style.display = 'block';
             clearBoundary();
@@ -246,6 +252,17 @@
             }
         }
 
+        function resetDrawUI() {
+            document.getElementById('drawBtn').style.display = 'block';
+            document.getElementById('finishDrawBtn').style.display = 'none';
+            document.getElementById('cancelDrawBtn').style.display = 'none';
+            if (boundaryLayer) {
+                document.getElementById('clearBoundaryBtn').style.display = 'block';
+            } else {
+                document.getElementById('clearBoundaryBtn').style.display = 'none';
+            }
+        }
+
         function startDrawing() {
             if(boundaryLayer) clearBoundary();
             isPathReversed = false;
@@ -254,37 +271,45 @@
             
             map.pm.enableDraw(mode, {
                 snappable: true, snapDistance: 20,
-                finishOn: 'dblclick', // Cho phép CLICK ĐÚP để kết thúc vẽ
-                allowSelfIntersection: true, // Cho phép vẽ cắt chéo để không bị kẹt cứng
+                finishOn: 'dblclick',
+                allowSelfIntersection: true,
                 hintlineStyle: { color: color, dashArray: '5,5' },
                 pathOptions: { color: color, weight: 3, dashArray: '5, 5', fillColor: 'transparent' }
             });
-
-            // UI Toggle
-            document.getElementById('drawBtn').style.display = 'none';
-            document.getElementById('cancelDrawBtn').style.display = 'block';
-            document.getElementById('clearBoundaryBtn').style.display = 'none';
         }
 
+        // DỪNG VÀ LƯU LẠI KẾT QUẢ ĐANG VẼ
+        function finishDrawing() {
+            let mode = drawModeType === 'polygon' ? 'Polygon' : 'Line';
+            if(map.pm.Draw[mode]) {
+                if(typeof map.pm.Draw[mode].finishShape === 'function') {
+                    map.pm.Draw[mode].finishShape();
+                } else if(typeof map.pm.Draw[mode]._finishShape === 'function') {
+                    map.pm.Draw[mode]._finishShape();
+                } else {
+                    map.pm.disableDraw();
+                }
+            }
+        }
+
+        // HỦY BỎ HOÀN TOÀN ĐƯỜNG ĐANG VẼ
         function cancelDrawing() {
             map.pm.disableDraw();
-            document.getElementById('drawBtn').style.display = 'block';
-            document.getElementById('cancelDrawBtn').style.display = 'none';
-            if(boundaryLayer) document.getElementById('clearBoundaryBtn').style.display = 'block';
+            resetDrawUI();
         }
 
         map.on('pm:drawstart', function(e) {
             document.getElementById('drawBtn').style.display = 'none';
+            document.getElementById('finishDrawBtn').style.display = 'block';
             document.getElementById('cancelDrawBtn').style.display = 'block';
+            document.getElementById('clearBoundaryBtn').style.display = 'none';
         });
 
         map.on('pm:drawend', function(e) {
-            document.getElementById('drawBtn').style.display = 'block';
-            document.getElementById('cancelDrawBtn').style.display = 'none';
+            resetDrawUI();
         });
 
         map.on('pm:create', function(e) { 
-            cancelDrawing();
             handleNewBoundary(e.layer); 
         });
 
