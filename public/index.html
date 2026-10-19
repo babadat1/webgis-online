@@ -104,7 +104,7 @@
         </div>
     </div>
     
-    <div id="userModal">...</div> <!-- Đã ẩn rút gọn HTML không cần thiết -->
+    <div id="userModal">...</div>
 
     <div id="loading-overlay"><div style="font-size: 30px; margin-bottom: 10px;">⏳</div><div id="loading-text">Đang xử lý dữ liệu...</div></div>
 
@@ -126,19 +126,21 @@
         </div>
 
         <button id="openTableBtn" class="btn-custom btn-table">Mở Bảng Thuộc Tính</button>
-        <button id="flightModeBtn" class="btn-custom" style="background-color: #2980b9; width: 100%; margin-bottom: 6px; font-weight: bold; padding: 7px; font-size: 13px;">🚁 Lập lộ trình bay Flycam (V6)</button>
+        <button id="flightModeBtn" class="btn-custom" style="background-color: #2980b9; width: 100%; margin-bottom: 6px; font-weight: bold; padding: 7px; font-size: 13px;">🚁 Lập lộ trình bay Flycam</button>
         <hr style="margin: 8px 0; border: 0; border-top: 1px solid #ddd;">
         <button id="exportBtn" class="btn-custom btn-save" style="width: 100%; margin: 0; padding: 7px; font-weight: bold; font-size: 13px;">Xuất File Bản Đồ (.geojson)</button>
     </div>
 
     <!-- UI Cửa sổ Flight Path PRO (Góc phải) -->
     <div id="flightPanel" class="flight-panel">
-        <h3>🚁 Cấu hình Flycam V6
+        <h3>🚁 Cấu hình Flycam (V7)
             <button class="btn-custom btn-cancel" style="padding: 2px 8px; font-size: 12px;" onclick="exitFlightMode()">✕ Đóng</button>
         </h3>
         
         <div class="help-text">
-            <b>MẸO:</b> Bạn có thể bấm <b>Vẽ mới</b> hoặc click trực tiếp vào một <b>Tuyến/Vùng có sẵn trên bản đồ</b> để làm ranh giới bay.
+            <b>MẸO CHỐNG KẸT VẼ:</b><br>
+            - Bấm <b>Đúp Chuột (Double Click)</b> để kết thúc nét vẽ.<br>
+            - Nhấn phím <b>ESC</b> để hủy bỏ đường đang vẽ dở.
         </div>
 
         <div class="mode-toggle">
@@ -147,8 +149,9 @@
         </div>
 
         <div style="display: flex; gap: 5px;">
-            <button class="btn-custom" style="background: #27ae60; flex: 1; font-weight: bold; padding: 8px;" id="drawBtn" onclick="startDrawing()">📝 Vẽ Vùng Bay</button>
-            <button class="btn-custom" style="background: #e74c3c; font-weight: bold; padding: 8px; display: none;" id="clearBoundaryBtn" onclick="clearBoundary()">🗑 Xóa</button>
+            <button class="btn-custom" style="background: #27ae60; flex: 1; font-weight: bold; padding: 8px;" id="drawBtn" onclick="startDrawing()">📝 Bắt Đầu Vẽ</button>
+            <button class="btn-custom" style="background: #e67e22; flex: 1; font-weight: bold; padding: 8px; display: none;" id="cancelDrawBtn" onclick="cancelDrawing()">🛑 Dừng/Hủy vẽ</button>
+            <button class="btn-custom" style="background: #e74c3c; font-weight: bold; padding: 8px; display: none;" id="clearBoundaryBtn" onclick="clearBoundary()">🗑 Xóa ranh giới</button>
         </div>
         
         <button class="btn-custom" style="background: #f39c12; width: 100%; font-weight: bold; padding: 8px;" onclick="reverseFlightPath()">🔄 Đảo chiều Bắt đầu / Kết thúc</button>
@@ -201,13 +204,13 @@
         var currentActiveProject = ""; 
         var defaultStyle = { color: "#3498db", weight: 3, fillColor: "#3498db", fillOpacity: 0.4 };
 
-        // === MODULE FLYCAM PRO V6 ===
+        // === MODULE FLYCAM PRO V7 ===
         var isFlightMode = false;
         var boundaryLayer = null; 
         var flightPolyline = L.polyline([], {color: '#e74c3c', weight: 3}).addTo(map); // Màu đỏ cho đường bay
         var flightMarkers = L.layerGroup().addTo(map);
         
-        var drawModeType = 'polygon'; // 'polygon' or 'line'
+        var drawModeType = 'polygon'; 
         var isPathReversed = false;
         
         var rawWaypoints = []; 
@@ -224,6 +227,7 @@
 
         function exitFlightMode() {
             isFlightMode = false;
+            cancelDrawing(); // Force stop drawing if active
             document.getElementById('flightPanel').style.display = 'none';
             document.getElementById('mainTools').style.display = 'block';
             clearBoundary();
@@ -231,14 +235,13 @@
 
         function switchDrawMode() {
             drawModeType = document.querySelector('input[name="flightMode"]:checked').value;
+            cancelDrawing();
             clearBoundary();
             
             let polyParams = document.querySelectorAll('.poly-only');
             if(drawModeType === 'polygon') {
-                document.getElementById('drawBtn').innerText = '📝 Vẽ Vùng Bay';
                 polyParams.forEach(el => el.style.display = 'flex');
             } else {
-                document.getElementById('drawBtn').innerText = '〰️ Vẽ Tuyến Bay';
                 polyParams.forEach(el => el.style.display = 'none');
             }
         }
@@ -251,12 +254,39 @@
             
             map.pm.enableDraw(mode, {
                 snappable: true, snapDistance: 20,
+                finishOn: 'dblclick', // Cho phép CLICK ĐÚP để kết thúc vẽ
+                allowSelfIntersection: true, // Cho phép vẽ cắt chéo để không bị kẹt cứng
                 hintlineStyle: { color: color, dashArray: '5,5' },
                 pathOptions: { color: color, weight: 3, dashArray: '5, 5', fillColor: 'transparent' }
             });
+
+            // UI Toggle
+            document.getElementById('drawBtn').style.display = 'none';
+            document.getElementById('cancelDrawBtn').style.display = 'block';
+            document.getElementById('clearBoundaryBtn').style.display = 'none';
         }
 
-        map.on('pm:create', function(e) { handleNewBoundary(e.layer); });
+        function cancelDrawing() {
+            map.pm.disableDraw();
+            document.getElementById('drawBtn').style.display = 'block';
+            document.getElementById('cancelDrawBtn').style.display = 'none';
+            if(boundaryLayer) document.getElementById('clearBoundaryBtn').style.display = 'block';
+        }
+
+        map.on('pm:drawstart', function(e) {
+            document.getElementById('drawBtn').style.display = 'none';
+            document.getElementById('cancelDrawBtn').style.display = 'block';
+        });
+
+        map.on('pm:drawend', function(e) {
+            document.getElementById('drawBtn').style.display = 'block';
+            document.getElementById('cancelDrawBtn').style.display = 'none';
+        });
+
+        map.on('pm:create', function(e) { 
+            cancelDrawing();
+            handleNewBoundary(e.layer); 
+        });
 
         function handleNewBoundary(layer) {
             boundaryLayer = layer;
