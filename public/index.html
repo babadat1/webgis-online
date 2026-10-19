@@ -128,20 +128,22 @@
         <button id="exportBtn" class="btn-custom btn-save" style="width: 100%; margin: 0; padding: 7px; font-weight: bold; font-size: 13px;">Xuất File Bản Đồ (.geojson)</button>
     </div>
 
-    <!-- UI Cửa sổ Flight Path PRO (Góc phải) -->
+    <!-- UI Cửa sổ Flight Path PRO (Góc phải) - Giữ nguyên 100% code vẽ tay của bạn -->
     <div id="flightPanel" class="flight-panel">
-        <h3>🚁 Cấu hình Flycam (V16)
+        <h3>🚁 Cấu hình Flycam (V20)
             <button class="btn-custom btn-cancel" style="padding: 2px 8px; font-size: 12px;" onclick="exitFlightMode()">✕ Đóng</button>
         </h3>
         
         <div class="help-text">
-            <b>HƯỚNG DẪN:</b><br>
-            - Chỉ cần chọn file hoặc dự án, hệ thống sẽ <b>tự động lấy polygon/polyline</b> để xử lý chạy đường bay ngay lập tức!
+            <b>HƯỚNG DẪN VẼ:</b><br>
+            - Bấm <b>📝 Vẽ Mới</b> để bắt đầu vẽ ranh giới.<br>
+            - Bấm <b>✅ Dừng (Lưu)</b> hoặc <b>Đúp Chuột (Double Click)</b> để kết thúc.<br>
+            - Hoặc chọn từ file/dự án đã tải bên dưới.
         </div>
 
         <!-- Ô chọn nhanh dự án / file đã có sẵn -->
         <div class="project-group" style="background: #eef2f7; margin-bottom: 8px; padding: 8px;">
-            <label style="font-size: 12px; color: #2c3e50; margin-bottom: 4px;">📂 Chọn từ file/dự án đã tải:</label>
+            <label style="font-size: 12px; color: #2c3e50; margin-bottom: 4px;">📂 Chọn từ file/dự án:</label>
             <select id="flightProjectSelect" style="width: 100%; padding: 6px; border-radius: 4px; border: 1px solid #ccc; font-size: 12px;" onchange="onSelectExistingProject(this)">
                 <option value="">-- Chọn dự án/file có sẵn --</option>
             </select>
@@ -152,17 +154,23 @@
             <label><input type="radio" name="flightMode" value="line" onchange="switchDrawMode()"> 〰️ Chạy Tuyến</label>
         </div>
 
-        <!-- Nút bấm chính xác để xử lý và xuất luôn -->
-        <button class="btn-custom btn-save" style="width: 100%; font-weight: bold; padding: 12px; margin-bottom: 8px; font-size: 14px; background-color: #27ae60;" onclick="autoProcessFlightPlan()">⚡ Xử Lý Đường Bay Từ Dữ Liệu</button>
-
+        <!-- CÁC NÚT VẼ TAY GỐC CỦA BẠN ĐÃ ĐƯỢC KHÔI PHỤC HOÀN TOÀN -->
         <div style="display: flex; gap: 5px; margin-bottom: 5px;" id="drawActionContainer">
-            <label class="btn-custom" style="background: #8e44ad; width: 100%; font-weight: bold; padding: 8px; text-align: center; cursor: pointer; display: block; margin: 0;" id="uploadFlightLabel">
-                📂 Tải file GeoJSON mới
+            <button class="btn-custom" style="background: #e67e22; flex: 1; font-weight: bold; padding: 8px;" id="drawBtn" onclick="startDrawing()">📝 Vẽ Mới</button>
+            <label class="btn-custom" style="background: #8e44ad; flex: 1; font-weight: bold; padding: 8px; text-align: center; cursor: pointer; display: block; margin: 0;" id="uploadFlightLabel">
+                📂 Tải file mới
                 <input type="file" id="flightGeojsonFile" accept=".geojson, .json" style="display: none;" />
             </label>
         </div>
         
-        <button class="btn-custom" style="background: #f39c12; width: 100%; font-weight: bold; padding: 8px; margin-top: 5px;" onclick="reverseFlightPath()">🔄 Đảo chiều Bắt đầu / Kết thúc</button>
+        <div style="display: flex; gap: 5px; margin-bottom: 5px;">
+            <button class="btn-custom" style="background: #3498db; flex: 1; font-weight: bold; padding: 8px; display: none;" id="finishDrawBtn" onclick="finishDrawing()">✅ Dừng (Lưu)</button>
+            <button class="btn-custom" style="background: #e74c3c; flex: 1; font-weight: bold; padding: 8px; display: none;" id="cancelDrawBtn" onclick="cancelDrawing()">🛑 Hủy (Xóa)</button>
+        </div>
+        
+        <button class="btn-custom" style="background: #c0392b; width: 100%; font-weight: bold; padding: 8px; display: none; margin-bottom: 5px;" id="clearBoundaryBtn" onclick="clearBoundary()">🗑 Xóa ranh giới vừa tạo</button>
+        
+        <button class="btn-custom" style="background: #f39c12; width: 100%; font-weight: bold; padding: 8px;" onclick="reverseFlightPath()">🔄 Đảo chiều Bắt đầu / Kết thúc</button>
 
         <div style="border-top: 1px dashed #ccc; padding-top: 10px; margin-top: 5px;">
             <div class="param-row">
@@ -188,7 +196,7 @@
             </div>
         </div>
 
-        <button class="btn-custom btn-db" style="width: 100%; padding: 12px; font-weight: bold; margin-top: 10px; font-size: 15px;" onclick="exportKML()">📥 Xuất Cấu Hình Bay (KML)</button>
+        <button class="btn-custom btn-db" style="width: 100%; padding: 10px; font-weight: bold; margin-top: 10px; font-size: 14px;" onclick="exportKML()">📥 Xuất cấu hình bay (KML)</button>
     </div>
 
     <div id="map"></div>
@@ -268,7 +276,6 @@
                     let geojson = data.geojson || data; 
                     loadedGeoJsonData = geojson;
                     renderDataToMap(geojson, projectName);
-                    autoProcessFlightPlan();
                 } else {
                     alert("Không tìm thấy dữ liệu hoặc lỗi kết nối đến CSDL!");
                 }
@@ -292,7 +299,6 @@
                      syncSelectBoxes("");
                      currentActiveProject = "";
                      loadedGeoJsonData = null;
-                     clearBoundary();
                  }
                  return;
             }
@@ -308,7 +314,6 @@
                         map.removeLayer(currentGeoJsonLayer);
                         currentActiveProject = "";
                         loadedGeoJsonData = null;
-                        clearBoundary();
                     }
                 } else {
                     alert("Lỗi khi xóa dự án!");
@@ -319,10 +324,10 @@
             }
         });
 
-        document.getElementById('geojsonFile').addEventListener('change', function(e) { handleUploadedFile(e.target.files[0]); this.value = null; });
-        document.getElementById('flightGeojsonFile').addEventListener('change', function(e) { handleUploadedFile(e.target.files[0]); this.value = null; });
+        document.getElementById('geojsonFile').addEventListener('change', function(e) { handleUploadedFile(e.target.files[0], true); this.value = null; });
+        document.getElementById('flightGeojsonFile').addEventListener('change', function(e) { handleUploadedFile(e.target.files[0], false); this.value = null; });
 
-        function handleUploadedFile(file) {
+        function handleUploadedFile(file, isMainUpload) {
             if (!file) return;
             var reader = new FileReader(); 
             document.getElementById('loading-overlay').style.display='flex';
@@ -331,16 +336,10 @@
             reader.onload = function(event) { 
                 try { 
                     let textContent = event.target.result.trim();
-                    if (textContent.charCodeAt(0) === 0xFEFF) {
-                        textContent = textContent.slice(1);
-                    }
+                    if (textContent.charCodeAt(0) === 0xFEFF) textContent = textContent.slice(1);
                     var geojson = JSON.parse(textContent); 
                     document.getElementById('loading-overlay').style.display='none';
                     
-                    if (!geojson.type && !geojson.features && !geojson.geometry) {
-                        throw new Error("Cấu trúc file không phải là GeoJSON chuẩn.");
-                    }
-
                     let rawName = file.name.replace(/\.[^/.]+$/, "");
                     let projId = 'file_' + rawName;
                     currentActiveProject = rawName; 
@@ -364,18 +363,12 @@
                     syncSelectBoxes(projId);
 
                     renderDataToMap(geojson, rawName);
-                    autoProcessFlightPlan();
-                    alert("Đã tải file và tự động xử lý đường bay thành công!");
+                    alert("Đã tải file thành công!");
                 } catch (err) { 
                     document.getElementById('loading-overlay').style.display='none'; 
-                    console.error("JSON Parse Error:", err);
-                    alert("⚠️ Lỗi đọc file: " + err.message);
+                    alert("⚠️ Lỗi đọc file JSON: " + err.message);
                 } 
             }; 
-            reader.onerror = function() {
-                document.getElementById('loading-overlay').style.display='none';
-                alert("⚠️ Không thể đọc file từ thiết bị!");
-            };
             reader.readAsText(file, "UTF-8");
         }
 
@@ -387,7 +380,6 @@
             if(val.startsWith('file_')) {
                 if(loadedGeoJsonData) {
                     renderDataToMap(loadedGeoJsonData, val);
-                    autoProcessFlightPlan();
                 }
                 return;
             }
@@ -402,7 +394,6 @@
                     let geojson = data.geojson || data; 
                     loadedGeoJsonData = geojson;
                     renderDataToMap(geojson, val);
-                    autoProcessFlightPlan();
                 } else {
                     alert("Không tìm thấy dữ liệu dự án trên CSDL!");
                 }
@@ -412,6 +403,25 @@
             } finally {
                 document.getElementById('loading-overlay').style.display = 'none';
             }
+        }
+
+        function setBoundaryFromFeature(feature) {
+            if (!feature || !feature.geometry) return;
+            if (boundaryLayer) map.removeLayer(boundaryLayer);
+            
+            boundaryLayer = L.geoJSON(feature.geometry, {
+                style: { color: feature.geometry.type.includes('Line') ? '#f1c40f' : '#ffffff', weight: 3, dashArray: '5, 5', fillOpacity: 0 }
+            }).getLayers()[0].addTo(map);
+            
+            if (feature.geometry.type === 'LineString' || feature.geometry.type === 'MultiLineString') {
+                document.querySelector('input[name="flightMode"][value="line"]').checked = true;
+            } else {
+                document.querySelector('input[name="flightMode"][value="polygon"]').checked = true;
+            }
+            switchDrawMode();
+            handleNewBoundary(boundaryLayer);
+            resetDrawUI();
+            map.fitBounds(boundaryLayer.getBounds());
         }
 
         document.getElementById('exportBtn').addEventListener('click', function() {
@@ -435,39 +445,113 @@
 
         loadProjects();
 
+        // === MÃ GỐC VẼ TAY CỦA BẠN ĐƯỢC GIỮ NGUYÊN HOÀN TOÀN ===
         var isFlightMode = false;
         var boundaryLayer = null; 
         var flightPolyline = L.polyline([], {color: '#e74c3c', weight: 3}).addTo(map); 
         var flightMarkers = L.layerGroup().addTo(map);
+        
         var drawModeType = 'polygon'; 
         var isPathReversed = false;
+        
         var rawWaypoints = []; 
         var rawPhotoWaypoints = []; 
+
+        map.pm.addControls({ position: 'topleft', drawMarker: false, drawCircleMarker: false, drawPolyline: false, drawRectangle: false, drawPolygon: false, drawCircle: false, editMode: false, dragMode: false, cutPolygon: false, removalMode: false });
+        document.querySelector('.leaflet-pm-toolbar').style.display = 'none';
 
         document.getElementById('flightModeBtn').addEventListener('click', function() {
             isFlightMode = true;
             document.getElementById('flightPanel').style.display = 'flex';
             document.getElementById('mainTools').style.display = 'none';
-            if(loadedGeoJsonData || currentGeoJsonLayer) {
-                autoProcessFlightPlan();
-            }
         });
 
         function exitFlightMode() {
             isFlightMode = false;
+            cancelDrawing();
             document.getElementById('flightPanel').style.display = 'none';
             document.getElementById('mainTools').style.display = 'block';
+            clearBoundary();
         }
 
         function switchDrawMode() {
             drawModeType = document.querySelector('input[name="flightMode"]:checked').value;
+            cancelDrawing();
+            clearBoundary();
+            
             let polyParams = document.querySelectorAll('.poly-only');
             if(drawModeType === 'polygon') {
                 polyParams.forEach(el => el.style.display = 'flex');
             } else {
                 polyParams.forEach(el => el.style.display = 'none');
             }
-            autoProcessFlightPlan();
+        }
+
+        function resetDrawUI() {
+            document.getElementById('drawBtn').style.display = 'block';
+            let uploadBtn = document.getElementById('uploadFlightLabel');
+            if(uploadBtn) uploadBtn.style.display = 'block';
+            
+            document.getElementById('finishDrawBtn').style.display = 'none';
+            document.getElementById('cancelDrawBtn').style.display = 'none';
+            if (boundaryLayer) {
+                document.getElementById('clearBoundaryBtn').style.display = 'block';
+            } else {
+                document.getElementById('clearBoundaryBtn').style.display = 'none';
+            }
+        }
+
+        function startDrawing() {
+            if(boundaryLayer) clearBoundary();
+            isPathReversed = false;
+            let mode = drawModeType === 'polygon' ? 'Polygon' : 'Line';
+            let color = drawModeType === 'polygon' ? '#ffffff' : '#f1c40f';
+            
+            map.pm.enableDraw(mode, {
+                snappable: true, snapDistance: 20,
+                finishOn: 'dblclick',
+                allowSelfIntersection: true,
+                hintlineStyle: { color: color, dashArray: '5,5' },
+                pathOptions: { color: color, weight: 3, dashArray: '5, 5', fillColor: 'transparent' }
+            });
+        }
+
+        function finishDrawing() {
+            let mode = drawModeType === 'polygon' ? 'Polygon' : 'Line';
+            if(map.pm.Draw[mode]) {
+                if(typeof map.pm.Draw[mode].finishShape === 'function') map.pm.Draw[mode].finishShape();
+                else if(typeof map.pm.Draw[mode]._finishShape === 'function') map.pm.Draw[mode]._finishShape();
+                else map.pm.disableDraw();
+            }
+        }
+
+        function cancelDrawing() {
+            map.pm.disableDraw();
+            resetDrawUI();
+        }
+
+        map.on('pm:drawstart', function(e) {
+            document.getElementById('drawBtn').style.display = 'none';
+            let uploadBtn = document.getElementById('uploadFlightLabel');
+            if(uploadBtn) uploadBtn.style.display = 'none';
+            
+            document.getElementById('finishDrawBtn').style.display = 'block';
+            document.getElementById('cancelDrawBtn').style.display = 'block';
+            document.getElementById('clearBoundaryBtn').style.display = 'none';
+        });
+
+        map.on('pm:drawend', function(e) { resetDrawUI(); });
+        map.on('pm:create', function(e) { handleNewBoundary(e.layer); });
+
+        function handleNewBoundary(layer) {
+            boundaryLayer = layer;
+            boundaryLayer.pm.enable({ allowSelfIntersection: false, preventMarkerRemoval: false });
+            boundaryLayer.on('pm:edit', generateGridPath);
+            boundaryLayer.on('pm:markerdragend', generateGridPath);
+            boundaryLayer.on('pm:vertexadded', generateGridPath);
+            boundaryLayer.on('pm:vertexremoved', generateGridPath);
+            document.getElementById('clearBoundaryBtn').style.display = 'block';
+            generateGridPath(); 
         }
 
         function clearBoundary() {
@@ -477,73 +561,18 @@
             rawWaypoints = [];
             rawPhotoWaypoints = [];
             isPathReversed = false;
+            document.getElementById('clearBoundaryBtn').style.display = 'none';
+            map.pm.disableDraw();
         }
 
         function reverseFlightPath() {
-            if(rawWaypoints.length === 0) {
-                autoProcessFlightPlan();
-            }
-            if(rawWaypoints.length === 0) return alert("Chưa có dữ liệu đường bay để đảo chiều!");
+            if(rawWaypoints.length === 0) return;
             isPathReversed = !isPathReversed;
             renderFlightPath();
         }
 
-        // HÀM TỰ ĐỘNG BÓC TÁCH VÀ XỬ LÝ ĐƯỜNG BAY 100% KHÔNG CẦN VẼ
-        function autoProcessFlightPlan() {
-            let targetFeature = null;
-
-            // 1. Lấy từ loadedGeoJsonData trực tiếp
-            if (loadedGeoJsonData) {
-                if (loadedGeoJsonData.type === 'FeatureCollection' && loadedGeoJsonData.features && loadedGeoJsonData.features.length > 0) {
-                    targetFeature = loadedGeoJsonData.features[0];
-                } else if (loadedGeoJsonData.type === 'Feature') {
-                    targetFeature = loadedGeoJsonData;
-                } else if (loadedGeoJsonData.geometry) {
-                    targetFeature = { type: "Feature", geometry: loadedGeoJsonData.geometry, properties: {} };
-                }
-            }
-
-            // 2. Hoặc lấy từ currentGeoJsonLayer trên bản đồ
-            if (!targetFeature && currentGeoJsonLayer) {
-                let layers = currentGeoJsonLayer.getLayers();
-                if (layers.length > 0) {
-                    let l = layers[0];
-                    if (typeof l.getLayers === 'function' && l.getLayers().length > 0) {
-                        l = l.getLayers()[0];
-                    }
-                    if (l.feature) targetFeature = l.feature;
-                }
-            }
-
-            if (!targetFeature) {
-                return;
-            }
-
-            // Xác định kiểu geometry để tự động chọn chế độ Polygon hay Line
-            let geomType = targetFeature.geometry.type;
-            if (geomType.includes('Line')) {
-                drawModeType = 'line';
-                document.querySelector('input[name="flightMode"][value="line"]').checked = true;
-            } else {
-                drawModeType = 'polygon';
-                document.querySelector('input[name="flightMode"][value="polygon"]').checked = true;
-            }
-            switchDrawMode();
-
-            // Vẽ ranh giới lên bản đồ
-            if (boundaryLayer) map.removeLayer(boundaryLayer);
-            boundaryLayer = L.geoJSON(targetFeature.geometry, {
-                style: { color: geomType.includes('Line') ? '#f1c40f' : '#ffffff', weight: 3, dashArray: '5, 5', fillOpacity: 0 }
-            }).getLayers()[0].addTo(map);
-
-            generateGridPath();
-        }
-
         function generateGridPath() {
-            if(!boundaryLayer) {
-                autoProcessFlightPlan();
-                if(!boundaryLayer) return;
-            }
+            if(!boundaryLayer) return;
             try {
                 let geoJSON = boundaryLayer.toGeoJSON();
                 let photoDist = parseFloat(document.getElementById('f_photo_dist').value) || 20; 
@@ -662,11 +691,7 @@
         }
 
         function exportKML() {
-            if (rawWaypoints.length < 2) {
-                autoProcessFlightPlan();
-            }
-            if (rawWaypoints.length < 2) return alert("Chưa có dữ liệu ranh giới/đường bay để xuất KML! Vui lòng chọn dự án hoặc tải file GeoJSON.");
-            
+            if (rawWaypoints.length < 2) return alert("Vui lòng vẽ vùng/tuyến bay trước khi xuất!");
             let alt = document.getElementById('f_alt').value || 100;
             let finalWps = isPathReversed ? [...rawWaypoints].reverse() : [...rawWaypoints];
             let finalPhotoWps = isPathReversed ? [...rawPhotoWaypoints].reverse() : [...rawPhotoWaypoints];
@@ -717,18 +742,17 @@
 
             kml += `  </Document>
 </kml>`;
-            
+    
             var blob = new Blob([kml], { type: "application/vnd.google-earth.kml+xml" });
             var url = URL.createObjectURL(blob);
             var a = document.createElement('a'); a.href = url; a.download = (currentActiveProject || "DuAn") + "_FlightPlan.KML";
             document.body.appendChild(a); a.click(); document.body.removeChild(a); window.URL.revokeObjectURL(url);
-            alert("Xuất file KML thành công!");
         }
 
         function bindLayerClick(layer, feature) {
             layer.on('click', function(e) { 
                 if (isFlightMode) {
-                    autoProcessFlightPlan();
+                    setBoundaryFromFeature(feature);
                     return;
                 }
             });
@@ -747,7 +771,7 @@
             if (currentGeoJsonLayer.getBounds().isValid()) map.fitBounds(currentGeoJsonLayer.getBounds()); 
         }
 
-        L.control.scale({imperial: false, position: 'bottomleft'}).addTo(map);
+        L.control.scale({imperial: false, position: 'bottomleft'}).dstAddTo ? L.control.scale({imperial: false, position: 'bottomleft'}).addTo(map) : L.control.scale({imperial: false, position: 'bottomleft'}).addTo(map);
     </script>
 </body>
 </html>
