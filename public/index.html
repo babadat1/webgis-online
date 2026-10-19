@@ -171,7 +171,8 @@
         
         <button class="btn-custom" style="background: #c0392b; width: 100%; font-weight: bold; padding: 8px; display: none; margin-bottom: 5px;" id="clearBoundaryBtn" onclick="clearBoundary()">🗑 Xóa ranh giới vừa tạo</button>
         
-        <button class="btn-custom" style="background: #f39c12; width: 100%; font-weight: bold; padding: 8px;" onclick="reverseFlightPath()">🔄 Đảo chiều Bắt đầu / Kết thúc</button>
+        <button class="btn-custom" style="background: #f39c12; width: 100%; font-weight: bold; padding: 8px; margin-bottom: 5px;" onclick="reverseFlightPath()">🔄 Đảo chiều Bắt đầu / Kết thúc</button>
+        <button class="btn-custom" style="background: #8e44ad; width: 100%; font-weight: bold; padding: 8px; margin-bottom: 5px;" onclick="enableWaypointInsertionMode()">➕ Bổ sung / Chèn điểm uốn khúc tùy chọn</button>
 
         <div style="border-top: 1px dashed #ccc; padding-top: 10px; margin-top: 5px;">
             <div class="param-row">
@@ -811,6 +812,51 @@
             map.fitBounds(boundaryLayer.getBounds());
             alert("Đã tự động vẽ và tạo đường bay từ file thành công!");
         }
+
+        let isWaypointInsertMode = false;
+        function enableWaypointInsertionMode() {
+            if (rawWaypoints.length === 0) {
+                alert("Vui lòng tạo đường bay trước khi chèn điểm tùy chọn!");
+                return;
+            }
+            isWaypointInsertMode = !isWaypointInsertMode;
+            if (isWaypointInsertMode) {
+                alert("💡 Chế độ chèn điểm đã bật: Hãy click trực tiếp lên đường bay màu đỏ để thêm điểm uốn khúc hoặc tách đoạn tại khu vực gấp khúc!");
+                flightPolyline.options.color = '#9b59b6';
+                flightPolyline.setStyle({color: '#9b59b6'});
+            } else {
+                flightPolyline.options.color = '#e74c3c';
+                flightPolyline.setStyle({color: '#e74c3c'});
+                alert("Đã tắt chế độ chèn điểm.");
+            }
+        }
+
+        // Bổ sung sự kiện click trên đường bay để chèn điểm tùy chọn
+        flightPolyline.on('click', function(e) {
+            if (!isWaypointInsertMode) return;
+            let clickedLatLng = e.latlng;
+            let clickedCoord = [clickedLatLng.lng, clickedLatLng.lat];
+            
+            // Tìm đoạn thẳng gần nhất để chèn điểm vào giữa
+            let minDist = Infinity;
+            let insertIndex = 1;
+            for (let i = 0; i < rawWaypoints.length - 1; i++) {
+                let p1 = turf.point(rawWaypoints[i]);
+                let p2 = turf.point(rawWaypoints[i+1]);
+                let line = turf.lineString([rawWaypoints[i], rawWaypoints[i+1]]);
+                let pt = turf.point(clickedCoord);
+                let distanced = turf.pointToLineDistance(pt, line, {units: 'meters'});
+                if (distanced < minDist) {
+                    minDist = distanced;
+                    insertIndex = i + 1;
+                }
+            }
+            
+            rawWaypoints.splice(insertIndex, 0, clickedCoord);
+            rawPhotoWaypoints.splice(insertIndex, 0, clickedCoord);
+            renderFlightPath();
+            alert("Đã chèn thêm điểm uốn khúc tại tọa độ: " + clickedLatLng.lat.toFixed(6) + ", " + clickedLatLng.lng.toFixed(6));
+        });
 
         L.control.scale({imperial: false, position: 'bottomleft'}).dstAddTo ? L.control.scale({imperial: false, position: 'bottomleft'}).addTo(map) : L.control.scale({imperial: false, position: 'bottomleft'}).addTo(map);
     </script>
