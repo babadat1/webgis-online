@@ -331,16 +331,14 @@
             reader.onload = function(event) { 
                 try { 
                     let textContent = event.target.result.trim();
-                    // Làm sạch các ký tự BOM hoặc khoảng trắng thừa dễ gây lỗi cú pháp JSON
                     if (textContent.charCodeAt(0) === 0xFEFF) {
                         textContent = textContent.slice(1);
                     }
                     var geojson = JSON.parse(textContent); 
                     document.getElementById('loading-overlay').style.display='none';
                     
-                    // Kiểm tra cơ bản cấu trúc GeoJSON hợp lệ
-                    if (!geojson.type) {
-                        throw new Error("File không chứa thuộc tính 'type' của GeoJSON.");
+                    if (!geojson.type && !geojson.features && !geojson.geometry) {
+                        throw new Error("Cấu trúc file không phải là GeoJSON chuẩn.");
                     }
 
                     let rawName = file.name.replace(/\.[^/.]+$/, "");
@@ -371,7 +369,7 @@
                 } catch (err) { 
                     document.getElementById('loading-overlay').style.display='none'; 
                     console.error("JSON Parse Error:", err);
-                    alert("⚠️ Lỗi đọc file JSON/GeoJSON: " + err.message + "\nVui lòng kiểm tra lại cấu trúc file!");
+                    alert("⚠️ Lỗi đọc file: " + err.message);
                 } 
             }; 
             reader.onerror = function() {
