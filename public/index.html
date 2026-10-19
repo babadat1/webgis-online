@@ -4,7 +4,13 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WebGIS - Quản lý Đa Dự án Đất đai</title>
+    
+    <!-- Leaflet CSS & JS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <!-- Leaflet Geoman (Công cụ vẽ và chỉnh sửa đỉnh Polygon) -->
+    <link rel="stylesheet" href="https://unpkg.com/@geoman-io/leaflet-geoman-free@latest/dist/leaflet-geoman.css" />
+    
     <style>
         body, html { margin: 0; padding: 0; height: 100%; width: 100%; font-family: Arial, sans-serif; overflow: hidden; }
         #map { height: 100%; width: 100%; }
@@ -79,14 +85,26 @@
         .checkbox-label { display: block; font-size: 13px; margin-bottom: 8px; cursor: pointer; color: #333; }
         .checkbox-label input { margin-right: 8px; }
 
-        /* Panel cấu hình Flycam */
+        /* Panel cấu hình Flycam Pro */
         .flight-panel {
             position: absolute; top: 10px; right: 10px; background: white;
-            padding: 15px; border-radius: 6px; box-shadow: 0 4px 15px rgba(0,0,0,0.4);
-            z-index: 1000; font-size: 13px; width: 280px; display: none; flex-direction: column; gap: 10px;
+            padding: 20px; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            z-index: 1000; font-size: 13px; width: 300px; display: none; flex-direction: column; gap: 12px;
         }
-        .flight-panel h3 { margin: 0 0 5px 0; color: #d35400; font-size: 15px; border-bottom: 1px solid #eee; padding-bottom: 5px;}
-        .wp-tooltip { background: rgba(0,0,0,0.8); color: white; border: none; box-shadow: none; font-weight: bold; padding: 2px 5px; font-size: 11px; }
+        .flight-panel h3 { margin: 0; color: #2c3e50; font-size: 16px; border-bottom: 2px solid #3498db; padding-bottom: 8px; display: flex; justify-content: space-between; align-items: center;}
+        
+        .param-row { display: flex; justify-content: space-between; align-items: center; }
+        .param-row label { font-weight: bold; color: #34495e; font-size: 12px;}
+        .param-row input[type="number"] { width: 70px; padding: 5px; border: 1px solid #ccc; border-radius: 4px; text-align: center; }
+        
+        .slider-container { display: flex; flex-direction: column; gap: 5px; }
+        .slider-container input[type="range"] { width: 100%; }
+        .slider-val { font-weight: bold; color: #e67e22; }
+
+        .wp-tooltip { background: #34495e; color: white; border: none; box-shadow: none; font-weight: bold; padding: 4px 6px; font-size: 11px; border-radius: 4px; }
+        .wp-start { background: #2ecc71; color: white; border: none; box-shadow: none; font-weight: bold; padding: 4px 6px; font-size: 11px; border-radius: 4px; }
+        
+        .help-text { font-size: 11.5px; color: #7f8c8d; line-height: 1.4; background: #f8f9fa; padding: 8px; border-radius: 4px; border-left: 3px solid #3498db; }
     </style>
 </head>
 <body>
@@ -108,6 +126,7 @@
 
     <!-- Modal Quản lý Tài khoản -->
     <div id="userModal">
+        <!-- Nội dung như cũ -->
         <div class="user-modal-box">
             <h3 style="margin-top:0; color:#2c3e50; text-align:center; margin-bottom: 20px;">Quản lý tài khoản hệ thống</h3>
             <div style="margin-bottom:15px;">
@@ -124,7 +143,7 @@
             </div>
             
             <div id="permissionsArea" style="margin-bottom: 20px; padding: 12px; background: #fdfdfd; border: 1px solid #dcdde1; border-radius: 5px;">
-                <label class="edit-label" style="margin-bottom: 10px; color: #c0392b; border-bottom: 1px solid #eee; padding-bottom: 5px;">Cấp Quyền Truy Cập (Dành cho tài khoản phân quyền):</label>
+                <label class="edit-label" style="margin-bottom: 10px; color: #c0392b; border-bottom: 1px solid #eee; padding-bottom: 5px;">Cấp Quyền Truy Cập:</label>
                 <label class="checkbox-label"><input type="checkbox" id="perm_upload"> Thêm dự án mới (Tải file GeoJSON)</label>
                 <label class="checkbox-label"><input type="checkbox" id="perm_delete"> Xóa dự án bản đồ</label>
                 <label class="checkbox-label"><input type="checkbox" id="perm_edit"> Chỉnh sửa dữ liệu & thuộc tính bản đồ</label>
@@ -133,7 +152,7 @@
 
             <div style="display:flex; gap:10px;">
                 <button class="btn-custom btn-save" style="flex:1; padding:10px; font-size: 14px;" onclick="saveUserChanges()">Lưu thay đổi</button>
-                <button id="btnDeleteUser" class="btn-custom btn-cancel" style="flex:1; padding:10px; font-size: 14px;" onclick="deleteTargetUser()">Xóa user này</button>
+                <button id="btnDeleteUser" class="btn-custom btn-cancel" style="flex:1; padding:10px; font-size: 14px;" onclick="deleteTargetUser()">Xóa</button>
                 <button class="btn-custom" style="flex:1; padding:10px; background-color:#95a5a6; color:white; border:none; border-radius:4px; font-size: 14px; font-weight:bold; cursor:pointer;" onclick="closeUserModal()">Đóng</button>
             </div>
         </div>
@@ -145,7 +164,7 @@
     </div>
 
     <!-- UI Cửa sổ chức năng trái -->
-    <div class="file-control">
+    <div class="file-control" id="mainTools">
         <div class="project-group">
             <label>1. Cửa sổ Dự Án:</label>
             <div class="project-row">
@@ -164,8 +183,8 @@
         <button id="openTableBtn" class="btn-custom btn-table">Mở Bảng Thuộc Tính</button>
         <a href="report.html" class="btn-custom btn-report" target="_blank">Trang Báo Cáo Thống Kê 📊</a>
         
-        <!-- NÚT GỌI FLYCAM -->
-        <button id="flightModeBtn" class="btn-custom" style="background-color: #d35400; width: 100%; margin-bottom: 6px; font-weight: bold; padding: 7px; font-size: 13px;">✈️ Lập đường bay Flycam</button>
+        <!-- NÚT GỌI FLYCAM PRO -->
+        <button id="flightModeBtn" class="btn-custom" style="background-color: #2980b9; width: 100%; margin-bottom: 6px; font-weight: bold; padding: 7px; font-size: 13px;">🚁 Lập lộ trình bay Flycam (Pro)</button>
 
         <button id="manageUsersBtn" class="btn-custom btn-users" onclick="openUserModal()">⚙️ Quản lý Tài khoản</button>
         
@@ -174,40 +193,38 @@
         <div id="saving-status">✓ Đã đồng bộ Database</div>
     </div>
 
-    <!-- UI Cửa sổ Flight Path (Góc phải) -->
+    <!-- UI Cửa sổ Flight Path PRO (Góc phải) -->
     <div id="flightPanel" class="flight-panel">
-        <h3>✈️ Thiết lập Đường Bay</h3>
+        <h3>🚁 Cấu hình lộ trình bay 
+            <button class="btn-custom btn-cancel" style="padding: 2px 8px; font-size: 12px;" onclick="exitFlightMode()">✕ Đóng</button>
+        </h3>
         
-        <!-- Chuyển đổi phương thức tạo -->
-        <div style="margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 10px;">
-            <label style="font-weight: bold; margin-bottom: 5px; display: block; color: #2c3e50;">Phương thức lập đường bay:</label>
-            <label style="display:inline-block; margin-right: 10px; cursor: pointer;"><input type="radio" name="flightGenMode" value="manual" checked onchange="toggleFlightMode()"> Vẽ thủ công</label>
-            <label style="display:inline-block; cursor: pointer;"><input type="radio" name="flightGenMode" value="auto" onchange="toggleFlightMode()"> Tự động theo Vùng</label>
+        <div class="help-text">
+            <b>1.</b> Bấm <b>"Vẽ vùng bay"</b> để tạo khung giới hạn (A,B,C,D).<br>
+            <b>2.</b> Bạn có thể <b>kéo các đỉnh</b> hoặc <b>bấm vào điểm giữa</b> các cạnh để chèn thêm đỉnh.<br>
+            <b>3.</b> Chỉnh thông số bên dưới, đường bay màu xanh sẽ tự động cập nhật.
         </div>
 
-        <!-- Setting cho chế độ tự động -->
-        <div id="flightAutoSettings" style="display:none; background: #fff5e6; padding: 10px; border-radius: 4px; margin-bottom: 10px; border: 1px dashed #e67e22;">
-            <div style="font-size: 11px; color: #d35400; margin-bottom: 8px;"><b>Click vào 1 thửa đất</b> trên bản đồ để hệ thống tự động tính toán lưới bay luống (Zigzag) an toàn bao phủ toàn bộ vùng đó.</div>
-            <label class="edit-label">Khoảng cách quét luống (m):</label>
-            <input type="number" id="flightSpacing" class="edit-input" value="30" min="5" max="200" title="Khoảng cách giữa các đường bay song song">
+        <button class="btn-custom" style="background: #27ae60; width: 100%; font-weight: bold; padding: 8px;" onclick="startDrawingBoundary()">📝 Vẽ vùng bay (Boundary)</button>
+        <button class="btn-custom" style="background: #e74c3c; width: 100%; font-weight: bold; padding: 8px; display: none;" id="clearBoundaryBtn" onclick="clearBoundary()">🗑 Xóa vùng bay hiện tại</button>
+
+        <div style="border-top: 1px dashed #ccc; padding-top: 10px; margin-top: 5px;">
+            <div class="param-row">
+                <label>Độ cao bay (m):</label>
+                <input type="number" id="f_alt" value="100" min="10" max="500" onchange="generateGridPath()">
+            </div>
+            <div class="param-row" style="margin-top: 8px;">
+                <label title="Khoảng cách giữa các đường bay song song (Side Overlap)">Khoảng cách luống (m):</label>
+                <input type="number" id="f_space" value="30" min="5" max="200" onchange="generateGridPath()">
+            </div>
+            
+            <div class="slider-container" style="margin-top: 12px;">
+                <label style="font-weight: bold; color: #34495e; font-size: 12px;">Góc bay (Hướng quét luống): <span class="slider-val" id="angleVal">0°</span></label>
+                <input type="range" id="f_angle" min="-90" max="90" value="0" step="1" oninput="updateAngleVal()" onchange="generateGridPath()">
+            </div>
         </div>
 
-        <!-- Setting cho chế độ thủ công -->
-        <div id="flightManualMsg" style="font-size: 12px; color: #555; margin-bottom: 5px;">
-            <b>Click chuột lên bản đồ</b> để thêm điểm Waypoint (WP) định hình đường bay tùy ý.
-        </div>
-
-        <div>
-            <label class="edit-label">Độ cao bay an toàn (mét):</label>
-            <input type="number" id="flightAltitude" class="edit-input" value="50" min="10" max="500">
-        </div>
-        
-        <div style="display: flex; gap: 5px; margin-top: 5px;">
-            <button class="btn-custom btn-edit" style="flex: 1; padding: 6px; font-size: 12px;" onclick="undoFlightPath()">↺ Xóa điểm cuối</button>
-            <button class="btn-custom btn-cancel" style="flex: 1; padding: 6px; font-size: 12px;" onclick="clearFlightPath()">✕ Xóa toàn bộ</button>
-        </div>
-        <button class="btn-custom btn-save" style="width: 100%; padding: 8px; font-weight: bold; margin-top: 5px;" onclick="exportKML()">📥 Tải file KML (Cho DJI Pilot)</button>
-        <button class="btn-custom" style="background: #7f8c8d; width: 100%; padding: 8px; font-weight: bold;" onclick="exitFlightMode()">Thoát chế độ bay</button>
+        <button class="btn-custom btn-db" style="width: 100%; padding: 10px; font-weight: bold; margin-top: 10px; font-size: 14px;" onclick="exportKML()">📥 Xuất cấu hình bay (KML)</button>
     </div>
 
     <div id="edit-sidebar" class="sidebar">
@@ -217,26 +234,24 @@
     </div>
 
     <div id="attributeModal" class="table-modal">
-        <div class="table-header">
-            <span>Danh sách Thửa đất & Thuộc tính</span>
-            <button class="table-close-btn" onclick="toggleAttributeTable()">✕</button>
-        </div>
-        <div class="table-body">
-            <table id="attrTableElement" class="attribute-table"></table>
-        </div>
+        <!-- Bảng thuộc tính như cũ -->
+        <div class="table-header"><span>Danh sách Thửa đất & Thuộc tính</span><button class="table-close-btn" onclick="toggleAttributeTable()">✕</button></div>
+        <div class="table-body"><table id="attrTableElement" class="attribute-table"></table></div>
     </div>
 
     <div id="map"></div>
 
+    <!-- Scripts -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@latest/dist/leaflet-geoman.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+
     <script>
         var map = L.map('map', { center: [10.7769, 106.7009], zoom: 13, maxZoom: 22 });
         var googleHybrid = L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { maxZoom: 22, subdomains: ['mt0', 'mt1', 'mt2', 'mt3']}).addTo(map);
         var googleRoad = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', { maxZoom: 22, subdomains: ['mt0', 'mt1', 'mt2', 'mt3']});
         var googleSat = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', { maxZoom: 22, subdomains: ['mt0', 'mt1', 'mt2', 'mt3']});
-        var googleLabels = L.tileLayer('https://{s}.google.com/vt/lyrs=h&x={x}&y={y}&z={z}', { maxZoom: 22, subdomains: ['mt0', 'mt1', 'mt2', 'mt3']});
-        
-        L.control.layers({"Hỗn hợp": googleHybrid, "Đường phố": googleRoad, "Vệ tinh": googleSat}, {"Tên đường": googleLabels}, {position: 'topright'}).addTo(map);
+        L.control.layers({"Hỗn hợp": googleHybrid, "Đường phố": googleRoad, "Vệ tinh": googleSat}, {}, {position: 'topright'}).addTo(map);
         
         var currentGeoJsonLayer = null, isEditMode = false, currentEditing = null; 
         const API_URL = window.location.origin;
@@ -250,110 +265,171 @@
         var defaultStyle = { color: "#3498db", weight: 2, fillColor: "#3498db", fillOpacity: 0.4 };
         var highlightStyle = { color: "#e74c3c", weight: 4, fillColor: "#e74c3c", fillOpacity: 0.7 };
 
-        // === BIẾN VÀ HÀM CHO FLYCAM ===
+        // === MODULE FLYCAM PRO (Turf.js + Geoman) ===
         var isFlightMode = false;
-        var flightWaypoints = [];
-        var flightPolyline = L.polyline([], {color: '#d35400', weight: 4, dashArray: '5, 10'}).addTo(map);
+        var boundaryLayer = null; // Polygon do user vẽ
+        var flightPolyline = L.polyline([], {color: '#3498db', weight: 3}).addTo(map); // Đường màu xanh dương như hình
         var flightMarkers = L.layerGroup().addTo(map);
+        var generatedWaypoints = []; // Lưu tọa độ xuất KML
+
+        // Cấu hình Geoman mặc định (Ẩn các tool mặc định, chỉ dùng code gọi)
+        map.pm.addControls({ position: 'topleft', drawMarker: false, drawCircleMarker: false, drawPolyline: false, drawRectangle: false, drawPolygon: false, drawCircle: false, editMode: false, dragMode: false, cutPolygon: false, removalMode: false });
+        document.querySelector('.leaflet-pm-toolbar').style.display = 'none'; // Ẩn thanh tool
 
         document.getElementById('flightModeBtn').addEventListener('click', function() {
             isFlightMode = true;
             document.getElementById('flightPanel').style.display = 'flex';
-            document.querySelector('.file-control').style.display = 'none';
-            toggleFlightMode(); // Set cursor correctly
+            document.getElementById('mainTools').style.display = 'none';
         });
 
         function exitFlightMode() {
             isFlightMode = false;
             document.getElementById('flightPanel').style.display = 'none';
-            document.querySelector('.file-control').style.display = 'block';
-            map.getContainer().style.cursor = '';
+            document.getElementById('mainTools').style.display = 'block';
+            clearBoundary();
         }
 
-        function toggleFlightMode() {
-            let mode = document.querySelector('input[name="flightGenMode"]:checked').value;
-            if (mode === 'auto') {
-                document.getElementById('flightAutoSettings').style.display = 'block';
-                document.getElementById('flightManualMsg').style.display = 'none';
-                map.getContainer().style.cursor = 'pointer'; 
-            } else {
-                document.getElementById('flightAutoSettings').style.display = 'none';
-                document.getElementById('flightManualMsg').style.display = 'block';
-                map.getContainer().style.cursor = 'crosshair';
-            }
+        function updateAngleVal() {
+            document.getElementById('angleVal').innerText = document.getElementById('f_angle').value + '°';
         }
 
-        // Tạo đường bay zic-zac bao trùm Bounding Box của khu vực
-        function generateAutoFlightPath(layer) {
-            let bounds = layer.getBounds();
-            let spacingMeters = parseFloat(document.getElementById('flightSpacing').value) || 30;
-            
-            // Thêm padding 10m mỗi cạnh để flycam quét bao trọn rìa thửa đất an toàn
-            let padMeters = 10;
-            let padLat = padMeters / 111320; 
-            let centerLat = bounds.getCenter().lat;
-            let padLng = padMeters / (111320 * Math.cos(centerLat * Math.PI / 180));
-
-            let minLat = bounds.getSouth() - padLat;
-            let maxLat = bounds.getNorth() + padLat;
-            let minLng = bounds.getWest() - padLng;
-            let maxLng = bounds.getEast() + padLng;
-
-            let dLat = spacingMeters / 111320;
-            
-            flightWaypoints = [];
-            let leftToRight = true;
-
-            for (let lat = maxLat; lat >= minLat; lat -= dLat) {
-                if (leftToRight) {
-                    flightWaypoints.push(L.latLng(lat, minLng));
-                    flightWaypoints.push(L.latLng(lat, maxLng));
-                } else {
-                    flightWaypoints.push(L.latLng(lat, maxLng));
-                    flightWaypoints.push(L.latLng(lat, minLng));
-                }
-                leftToRight = !leftToRight;
-            }
-            updateFlightPath();
-            highlightFeature(layer);
-        }
-
-        // Bắt sự kiện click lên khoảng trống bản đồ (Chế độ thủ công)
-        map.on('click', function(e) {
-            if (isFlightMode) {
-                let mode = document.querySelector('input[name="flightGenMode"]:checked').value;
-                if (mode === 'manual') {
-                    flightWaypoints.push(e.latlng);
-                    updateFlightPath();
-                }
-            }
-        });
-
-        function updateFlightPath() {
-            flightPolyline.setLatLngs(flightWaypoints);
-            flightMarkers.clearLayers();
-            flightWaypoints.forEach((latlng, index) => {
-                let marker = L.circleMarker(latlng, {radius: 5, color: '#d35400', fillColor: '#fff', fillOpacity: 1});
-                // Ẩn bớt toolip nếu quá nhiều điểm trong chế độ auto để tránh lag/rối mắt
-                if(flightWaypoints.length < 50 || index % 2 === 0 || index === flightWaypoints.length - 1) {
-                    marker.bindTooltip("WP " + (index + 1), {permanent: true, direction: 'right', className: 'wp-tooltip'}).openTooltip();
-                }
-                flightMarkers.addLayer(marker);
+        function startDrawingBoundary() {
+            if(boundaryLayer) clearBoundary();
+            map.pm.enableDraw('Polygon', {
+                snappable: true,
+                snapDistance: 20,
+                hintlineStyle: { color: '#e67e22', dashArray: '5,5' },
+                pathOptions: { color: '#ffffff', weight: 2, dashArray: '5, 5', fillColor: 'transparent' } // Style giống viền giới hạn
             });
         }
 
-        function clearFlightPath() { flightWaypoints = []; updateFlightPath(); }
-        function undoFlightPath() { flightWaypoints.pop(); updateFlightPath(); }
+        // Bắt sự kiện khi vẽ xong Polygon
+        map.on('pm:create', function(e) {
+            boundaryLayer = e.layer;
+            
+            // Bật chế độ edit cho khung này (hiện các đỉnh để kéo, thêm)
+            boundaryLayer.pm.enable({
+                allowSelfIntersection: false,
+                preventMarkerRemoval: false
+            });
+
+            // Lắng nghe sự kiện thay đổi hình dáng (Kéo đỉnh, thêm đỉnh)
+            boundaryLayer.on('pm:edit', generateGridPath);
+            boundaryLayer.on('pm:markerdragend', generateGridPath);
+            boundaryLayer.on('pm:vertexadded', generateGridPath);
+            boundaryLayer.on('pm:vertexremoved', generateGridPath);
+
+            document.getElementById('clearBoundaryBtn').style.display = 'block';
+            
+            generateGridPath(); // Tính toán đường bay ngay lập tức
+        });
+
+        function clearBoundary() {
+            if(boundaryLayer) { map.removeLayer(boundaryLayer); boundaryLayer = null; }
+            flightPolyline.setLatLngs([]);
+            flightMarkers.clearLayers();
+            generatedWaypoints = [];
+            document.getElementById('clearBoundaryBtn').style.display = 'none';
+            map.pm.disableDraw();
+        }
+
+        // --- THUẬT TOÁN TÍNH ĐƯỜNG BAY QUÉT LUỐNG ---
+        function generateGridPath() {
+            if(!boundaryLayer) return;
+
+            try {
+                let polyGeoJSON = boundaryLayer.toGeoJSON();
+                let spacing = parseFloat(document.getElementById('f_space').value) || 30; // mét
+                let angle = parseInt(document.getElementById('f_angle').value) || 0; // độ
+
+                // 1. Tìm tâm của vùng vẽ
+                let centerPt = turf.centerOfMass(polyGeoJSON);
+
+                // 2. Xoay Polygon ngược lại theo góc bay để việc cắt grid trở thành cắt theo phương ngang (dễ tính toán)
+                let rotatedPoly = turf.transformRotate(polyGeoJSON, -angle, {pivot: centerPt});
+
+                // 3. Lấy Bounding Box của Polygon đã xoay
+                let bbox = turf.bbox(rotatedPoly); // [minX, minY, maxX, maxY]
+                
+                // 4. Tạo các đường cắt ngang (Scanlines)
+                // Đổi spacing từ mét sang vĩ độ (1 độ vĩ = ~111,320m)
+                let deltaLat = spacing / 111320; 
+                let currentLat = bbox[3]; // Chạy từ đỉnh Bắc (North) xuống Nam (South)
+                let minLat = bbox[1];
+                let minLng = bbox[0] - 0.005; // Kéo dài đường cắt ra ngoài bbox
+                let maxLng = bbox[2] + 0.005;
+
+                let isLeftToRight = true;
+                let rawWaypoints = [];
+
+                while(currentLat >= minLat) {
+                    // Tạo một đường thẳng ngang dài
+                    let scanLine = turf.lineString([[minLng, currentLat], [maxLng, currentLat]]);
+                    
+                    // Cắt đường ngang với Polygon
+                    let intersects = turf.lineIntersect(scanLine, rotatedPoly);
+                    
+                    if(intersects.features.length >= 2) {
+                        // Lọc và lấy tọa độ giao cắt
+                        let pts = intersects.features.map(f => f.geometry.coordinates);
+                        // Sắp xếp các điểm giao từ Tây sang Đông (X tăng dần)
+                        pts.sort((a,b) => a[0] - b[0]);
+                        
+                        // Lấy 2 điểm ngoài cùng làm đường ranh giới luống bay
+                        let pWest = pts[0];
+                        let pEast = pts[pts.length-1];
+
+                        if(isLeftToRight) {
+                            rawWaypoints.push(pWest); rawWaypoints.push(pEast);
+                        } else {
+                            rawWaypoints.push(pEast); rawWaypoints.push(pWest);
+                        }
+                        isLeftToRight = !isLeftToRight;
+                    }
+                    currentLat -= deltaLat;
+                }
+
+                if(rawWaypoints.length < 2) return; // Vùng quá nhỏ
+
+                // 5. Kết nối thành đường zic-zac và xoay trả về góc ban đầu
+                let pathLineString = turf.lineString(rawWaypoints);
+                let finalPath = turf.transformRotate(pathLineString, angle, {pivot: centerPt});
+
+                // 6. Hiển thị lên bản đồ
+                generatedWaypoints = finalPath.geometry.coordinates; // Lưu lại dạng [Lng, Lat] để xuất KML
+                let leafletCoords = generatedWaypoints.map(coord => [coord[1], coord[0]]); // Leaflet dùng [Lat, Lng]
+                
+                flightPolyline.setLatLngs(leafletCoords);
+                
+                // 7. Vẽ marker Điểm Đầu (Start) và các Waypoint
+                flightMarkers.clearLayers();
+                leafletCoords.forEach((latlng, index) => {
+                    let marker = L.circleMarker(latlng, {radius: 4, color: (index===0)?'#2ecc71':'#3498db', fillColor: '#fff', fillOpacity: 1});
+                    let tooltipClass = (index === 0) ? 'wp-start' : 'wp-tooltip';
+                    let tooltipText = (index === 0) ? 'BẮT ĐẦU' : (index + 1).toString();
+                    
+                    // Chỉ hiện số cho điểm bắt đầu và thưa ra để đỡ rối mắt
+                    if(index === 0 || index === leafletCoords.length - 1 || leafletCoords.length < 30) {
+                        marker.bindTooltip(tooltipText, {permanent: true, direction: 'right', className: tooltipClass}).openTooltip();
+                    }
+                    flightMarkers.addLayer(marker);
+                });
+
+            } catch (err) {
+                console.log("Lỗi tính toán đường bay:", err);
+                // Xảy ra khi polygon bị vẽ chéo/tự cắt nhau không hợp lệ
+            }
+        }
 
         function exportKML() {
-            if (flightWaypoints.length < 2) return alert("Cần ít nhất 2 điểm (Waypoint) để tạo đường bay!");
-            let alt = document.getElementById('flightAltitude').value || 50;
+            if (generatedWaypoints.length < 2) return alert("Vui lòng vẽ vùng bay và để hệ thống tạo đường bay trước khi xuất!");
+            let alt = document.getElementById('f_alt').value || 100;
             
-            // Format KML chuẩn cho tay cầm DJI
+            // Format KML chuẩn cho DJI Pilot
             let kml = `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">
   <Document>
-    <name>WebGIS_FlightPlan</name>
+    <name>Lộ Trình Tự Động WebGIS</name>
     <Placemark>
       <name>Flight Path</name>
       <LineString>
@@ -362,8 +438,8 @@
         <altitudeMode>relativeToGround</altitudeMode>
         <coordinates>
 `;
-            flightWaypoints.forEach(wp => { kml += `          ${wp.lng},${wp.lat},${alt}
-`; });
+            generatedWaypoints.forEach(wp => { kml += `          ${wp[0]},${wp[1]},${alt}
+`; }); // wp = [lng, lat]
             kml += `        </coordinates>
       </LineString>
     </Placemark>
@@ -372,11 +448,12 @@
             
             var blob = new Blob([kml], { type: "application/vnd.google-earth.kml+xml" });
             var url = URL.createObjectURL(blob);
-            var a = document.createElement('a'); a.href = url; a.download = (currentActiveProject || "DuAn") + "_FlightPlan.kml";
+            var a = document.createElement('a'); a.href = url; a.download = (currentActiveProject || "DuAn") + "_FlightPlan_Pro.kml";
             document.body.appendChild(a); a.click(); document.body.removeChild(a); window.URL.revokeObjectURL(url);
         }
-        // ==================================
+        // ============================================
 
+        // --- CÁC HÀM CŨ CỦA WEBGIS GIỮ NGUYÊN BÊN DƯỚI ---
         function highlightFeature(layer) {
             if (highlightedLayer && currentGeoJsonLayer) currentGeoJsonLayer.resetStyle(highlightedLayer);
             highlightedLayer = layer;
@@ -427,7 +504,7 @@
             let oldBadge = document.getElementById('roleBadgeDisplay');
             if(oldBadge) oldBadge.remove();
             let badge = document.createElement('div'); badge.id = 'roleBadgeDisplay';
-            document.querySelector('.file-control').insertBefore(badge, document.querySelector('.project-group'));
+            document.querySelector('#mainTools').insertBefore(badge, document.querySelector('.project-group'));
 
             if (currentUserRole === 'admin') {
                 document.getElementById('delProjectBtn').style.display = 'block';
@@ -448,286 +525,34 @@
             }
         }
 
-        function fetchSystemUsers() {
-            fetch(API_URL + '/api/users').then(res => res.json()).then(data => {
-                if(data.success) {
-                    systemUsersData = data.users;
-                    let select = document.getElementById('userSelect');
-                    select.innerHTML = '<option value="NEW">➕ TẠO TÀI KHOẢN MỚI...</option>';
-                    systemUsersData.forEach(u => {
-                        let roleStr = u.role === 'admin' ? ' (Admin)' : '';
-                        select.innerHTML += `<option value="${u.username}">${u.username}${roleStr}</option>`;
-                    });
-                    loadTargetUser();
-                }
-            });
-        }
-
+        // Lược bỏ bớt code Quản lý User/Project ở view cho gọn, giữ nguyên logic JS
+        function fetchSystemUsers() { fetch(API_URL + '/api/users').then(res => res.json()).then(data => { if(data.success) { systemUsersData = data.users; let select = document.getElementById('userSelect'); select.innerHTML = '<option value="NEW">➕ TẠO TÀI KHOẢN MỚI...</option>'; systemUsersData.forEach(u => { let roleStr = u.role === 'admin' ? ' (Admin)' : ''; select.innerHTML += `<option value="${u.username}">${u.username}${roleStr}</option>`; }); loadTargetUser(); } }); }
         function openUserModal() { fetchSystemUsers(); document.getElementById('userModal').style.display = 'flex'; }
         function closeUserModal() { document.getElementById('userModal').style.display = 'none'; }
-
-        function loadTargetUser() {
-            let targetUser = document.getElementById('userSelect').value;
-            let permsArea = document.getElementById('permissionsArea');
-            let delBtn = document.getElementById('btnDeleteUser');
-
-            if(targetUser === 'NEW') {
-                document.getElementById('editUsername').value = '';
-                document.getElementById('editPassword').value = '';
-                document.getElementById('perm_upload').checked = false;
-                document.getElementById('perm_delete').checked = false;
-                document.getElementById('perm_edit').checked = false;
-                document.getElementById('perm_export').checked = false;
-                permsArea.style.opacity = '1'; permsArea.style.pointerEvents = 'auto';
-                delBtn.style.display = 'none';
-            } else {
-                let user = systemUsersData.find(u => u.username === targetUser);
-                if(user) {
-                    document.getElementById('editUsername').value = user.username;
-                    document.getElementById('editPassword').value = user.password;
-                    if(user.role === 'admin') {
-                        permsArea.style.opacity = '0.4'; permsArea.style.pointerEvents = 'none';
-                        document.getElementById('perm_upload').checked = true;
-                        document.getElementById('perm_delete').checked = true;
-                        document.getElementById('perm_edit').checked = true;
-                        document.getElementById('perm_export').checked = true;
-                        delBtn.style.display = 'none'; 
-                    } else {
-                        permsArea.style.opacity = '1'; permsArea.style.pointerEvents = 'auto';
-                        let p = user.permissions || {};
-                        document.getElementById('perm_upload').checked = !!p.can_upload;
-                        document.getElementById('perm_delete').checked = !!p.can_delete;
-                        document.getElementById('perm_edit').checked = !!p.can_edit;
-                        document.getElementById('perm_export').checked = !!p.can_export;
-                        delBtn.style.display = 'block';
-                    }
-                }
-            }
-        }
-
-        function saveUserChanges() {
-            let targetUser = document.getElementById('userSelect').value;
-            let mode = targetUser === 'NEW' ? 'create' : 'update';
-            let oldU = targetUser === 'NEW' ? '' : targetUser;
-            let newU = document.getElementById('editUsername').value.trim();
-            let newP = document.getElementById('editPassword').value.trim();
-            if(!newU || !newP) return alert("Vui lòng nhập đầy đủ Tên tài khoản và Mật khẩu!");
-            let userObj = systemUsersData.find(u => u.username === targetUser);
-            let roleToSave = (userObj && userObj.role === 'admin') ? 'admin' : 'guest';
-            let permissions = {
-                can_upload: document.getElementById('perm_upload').checked,
-                can_delete: document.getElementById('perm_delete').checked,
-                can_edit: document.getElementById('perm_edit').checked,
-                can_export: document.getElementById('perm_export').checked
-            };
-
-            fetch(API_URL + '/api/save-user', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ mode: mode, oldUsername: oldU, newUsername: newU, newPassword: newP, role: roleToSave, permissions: permissions })
-            }).then(res => res.json()).then(data => {
-                if(data.success) {
-                    alert(data.message); fetchSystemUsers(); document.getElementById('userSelect').value = newU; setTimeout(loadTargetUser, 500);
-                } else alert("Lỗi: " + data.message);
-            });
-        }
-
-        function deleteTargetUser() {
-            let targetUser = document.getElementById('userSelect').value;
-            if(targetUser === 'NEW' || targetUser === 'admin') return;
-            if(confirm(`Bạn có CHẮC CHẮN muốn XÓA vĩnh viễn tài khoản [${targetUser}] không?`)) {
-                fetch(API_URL + '/api/delete-user/' + targetUser, { method: 'DELETE' }).then(res => res.json()).then(data => {
-                    if(data.success) { alert(data.message); fetchSystemUsers(); } else alert(data.error || data.message);
-                });
-            }
-        }
-
-        document.getElementById('delProjectBtn').addEventListener('click', function() {
-            let p = document.getElementById('projectSelect').value;
-            if(!p) return alert("Vui lòng chọn dự án cần xóa!");
-            if(confirm(`Bạn có chắc muốn XÓA TOÀN BỘ dữ liệu của dự án [${p}]?`)) {
-                showLoading("Đang xóa dự án...");
-                fetch(API_URL + '/api/delete-project/' + encodeURIComponent(p), { method: 'DELETE' }).then(res => res.json()).then(data => {
-                    hideLoading();
-                    if(data.success) {
-                        alert(data.message);
-                        if (currentGeoJsonLayer) { map.removeLayer(currentGeoJsonLayer); currentGeoJsonLayer = null; }
-                        localStorage.removeItem('webgis_cache_data'); loadProjectList();
-                    } else alert("Lỗi xóa: " + data.error);
-                });
-            }
-        });
-
+        function loadTargetUser() { let targetUser = document.getElementById('userSelect').value; let permsArea = document.getElementById('permissionsArea'); let delBtn = document.getElementById('btnDeleteUser'); if(targetUser === 'NEW') { document.getElementById('editUsername').value = ''; document.getElementById('editPassword').value = ''; document.getElementById('perm_upload').checked = false; document.getElementById('perm_delete').checked = false; document.getElementById('perm_edit').checked = false; document.getElementById('perm_export').checked = false; permsArea.style.opacity = '1'; permsArea.style.pointerEvents = 'auto'; delBtn.style.display = 'none'; } else { let user = systemUsersData.find(u => u.username === targetUser); if(user) { document.getElementById('editUsername').value = user.username; document.getElementById('editPassword').value = user.password; if(user.role === 'admin') { permsArea.style.opacity = '0.4'; permsArea.style.pointerEvents = 'none'; document.getElementById('perm_upload').checked = true; document.getElementById('perm_delete').checked = true; document.getElementById('perm_edit').checked = true; document.getElementById('perm_export').checked = true; delBtn.style.display = 'none'; } else { permsArea.style.opacity = '1'; permsArea.style.pointerEvents = 'auto'; let p = user.permissions || {}; document.getElementById('perm_upload').checked = !!p.can_upload; document.getElementById('perm_delete').checked = !!p.can_delete; document.getElementById('perm_edit').checked = !!p.can_edit; document.getElementById('perm_export').checked = !!p.can_export; delBtn.style.display = 'block'; } } } }
+        function saveUserChanges() { let targetUser = document.getElementById('userSelect').value; let mode = targetUser === 'NEW' ? 'create' : 'update'; let oldU = targetUser === 'NEW' ? '' : targetUser; let newU = document.getElementById('editUsername').value.trim(); let newP = document.getElementById('editPassword').value.trim(); if(!newU || !newP) return alert("Vui lòng nhập đầy đủ!"); let userObj = systemUsersData.find(u => u.username === targetUser); let roleToSave = (userObj && userObj.role === 'admin') ? 'admin' : 'guest'; let permissions = { can_upload: document.getElementById('perm_upload').checked, can_delete: document.getElementById('perm_delete').checked, can_edit: document.getElementById('perm_edit').checked, can_export: document.getElementById('perm_export').checked }; fetch(API_URL + '/api/save-user', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: mode, oldUsername: oldU, newUsername: newU, newPassword: newP, role: roleToSave, permissions: permissions }) }).then(res => res.json()).then(data => { if(data.success) { alert(data.message); fetchSystemUsers(); document.getElementById('userSelect').value = newU; setTimeout(loadTargetUser, 500); } else alert("Lỗi: " + data.message); }); }
+        function deleteTargetUser() { let targetUser = document.getElementById('userSelect').value; if(targetUser === 'NEW' || targetUser === 'admin') return; if(confirm(`Xóa vĩnh viễn [${targetUser}]?`)) { fetch(API_URL + '/api/delete-user/' + targetUser, { method: 'DELETE' }).then(res => res.json()).then(data => { if(data.success) { alert(data.message); fetchSystemUsers(); } else alert(data.error || data.message); }); } }
+        
+        document.getElementById('delProjectBtn').addEventListener('click', function() { let p = document.getElementById('projectSelect').value; if(!p) return; if(confirm(`XÓA TOÀN BỘ dự án [${p}]?`)) { showLoading("Đang xóa..."); fetch(API_URL + '/api/delete-project/' + encodeURIComponent(p), { method: 'DELETE' }).then(res => res.json()).then(data => { hideLoading(); if(data.success) { alert(data.message); if (currentGeoJsonLayer) { map.removeLayer(currentGeoJsonLayer); currentGeoJsonLayer = null; } localStorage.removeItem('webgis_cache_data'); loadProjectList(); } else alert("Lỗi: " + data.error); }); } });
         document.getElementById('projectSelect').addEventListener('change', function() { if(this.value) document.getElementById('loadDbBtn').click(); });
         function saveToLocalStorageCache(geojson) { localStorage.setItem('webgis_cache_data', JSON.stringify(geojson)); }
         function escapeHtml(text) { return text === null || text === undefined ? '' : String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); }
         function closeSidebar() { document.getElementById('edit-sidebar').classList.remove('active'); isEditMode = false; currentEditing = null; }
         function showSaveStatus(msg) { var status = document.getElementById('saving-status'); if(msg) status.innerText = msg; status.style.display = 'block'; setTimeout(() => { status.style.display = 'none'; }, 3000); }
 
-        function saveCurrentEdit() {
-            if (currentEditing) {
-                for (var key in currentEditing.inputs) currentEditing.feature.properties[key] = currentEditing.inputs[key].value;
-                fetch(API_URL + '/api/save-feature', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ id: currentEditing.feature.id, properties: currentEditing.feature.properties, geometry: currentEditing.feature.geometry, projectName: currentActiveProject })
-                }).then(res => res.json()).then(data => {
-                    showSaveStatus("✓ Đã lưu sửa đổi");
-                    if (currentGeoJsonLayer) saveToLocalStorageCache(currentGeoJsonLayer.toGeoJSON());
-                });
-                currentGeoJsonLayer.resetStyle(currentEditing.layer);
-                currentEditing.layer.bindPopup(createPopupContent(currentEditing.feature, currentEditing.layer));
-            }
-        }
+        function saveCurrentEdit() { if (currentEditing) { for (var key in currentEditing.inputs) currentEditing.feature.properties[key] = currentEditing.inputs[key].value; fetch(API_URL + '/api/save-feature', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: currentEditing.feature.id, properties: currentEditing.feature.properties, geometry: currentEditing.feature.geometry, projectName: currentActiveProject }) }).then(res => res.json()).then(data => { showSaveStatus("✓ Đã lưu sửa đổi"); if (currentGeoJsonLayer) saveToLocalStorageCache(currentGeoJsonLayer.toGeoJSON()); }); currentGeoJsonLayer.resetStyle(currentEditing.layer); currentEditing.layer.bindPopup(createPopupContent(currentEditing.feature, currentEditing.layer)); } }
+        function openSidebar(feature, layer) { var sidebar = document.getElementById('edit-sidebar'); var formDiv = document.getElementById('sidebar-form'); var footerDiv = document.getElementById('sidebar-footer'); formDiv.innerHTML = ''; footerDiv.innerHTML = ''; var props = feature.properties || {}; var inputElements = {}; for (var key in props) { var label = document.createElement('label'); label.className = 'edit-label'; label.innerText = key + ':'; formDiv.appendChild(label); var input = document.createElement('input'); input.type = 'text'; input.className = 'edit-input'; input.value = props[key] !== null && props[key] !== undefined ? props[key] : ''; formDiv.appendChild(input); inputElements[key] = input; } isEditMode = true; currentEditing = { feature: feature, layer: layer, inputs: inputElements }; var saveBtn = document.createElement('button'); saveBtn.className = 'btn-custom btn-save'; saveBtn.innerText = 'Lưu Database'; saveBtn.onclick = function() { saveCurrentEdit(); closeSidebar(); }; footerDiv.appendChild(saveBtn); var cancelBtn = document.createElement('button'); cancelBtn.className = 'btn-custom btn-cancel'; cancelBtn.innerText = 'Hủy'; cancelBtn.onclick = function() { closeSidebar(); }; footerDiv.appendChild(cancelBtn); sidebar.classList.add('active'); }
+        function createPopupContent(feature, layer) { var container = document.createElement('div'); var propsDiv = document.createElement('div'); propsDiv.className = 'popup-content'; var html = ""; for (var key in feature.properties) html += "<b>" + escapeHtml(key) + ":</b> " + escapeHtml(feature.properties[key]) + "<br>"; propsDiv.innerHTML = html; container.appendChild(propsDiv); if (currentUserRole === 'admin' || canEditData) { var btnContainer = document.createElement('div'); btnContainer.className = 'popup-btn-container'; var editBtn = document.createElement('button'); editBtn.className = 'btn-custom btn-edit'; editBtn.innerText = 'Chỉnh sửa'; editBtn.onclick = function() { openSidebar(feature, layer); map.closePopup(); }; btnContainer.appendChild(editBtn); container.appendChild(btnContainer); } return container; }
+        
+        function renderAttributeTable() { var tableEl = document.getElementById('attrTableElement'); tableEl.innerHTML = ''; if (!currentGeoJsonLayer) return; var features = []; currentGeoJsonLayer.eachLayer(function(layer) { if (layer.feature && layer.feature.properties) features.push({ feature: layer.feature, layer: layer }); }); if (features.length === 0) return; var keys = Object.keys(features[0].feature.properties); var thead = document.createElement('thead'); var headerTr = document.createElement('tr'); var thAction = document.createElement('th'); thAction.innerText = "Zoom"; headerTr.appendChild(thAction); keys.forEach(key => { var th = document.createElement('th'); th.innerText = key; headerTr.appendChild(th); }); thead.appendChild(headerTr); tableEl.appendChild(thead); var tbody = document.createElement('tbody'); features.forEach(item => { var tr = document.createElement('tr'); var tdAction = document.createElement('td'); var zoomBtn = document.createElement('button'); zoomBtn.className = 'btn-custom btn-edit'; zoomBtn.innerText = '📍'; zoomBtn.style.padding = '3px 6px'; zoomBtn.onclick = function(e) { e.stopPropagation(); toggleAttributeTable(); if (item.layer.getBounds) { map.fitBounds(item.layer.getBounds(), { maxZoom: 20 }); item.layer.openPopup(); highlightFeature(item.layer); } }; tdAction.appendChild(zoomBtn); tr.appendChild(tdAction); keys.forEach(key => { var td = document.createElement('td'); var val = item.feature.properties[key]; td.innerText = val !== null && val !== undefined ? val : ''; tr.appendChild(td); }); tr.onclick = function() { toggleAttributeTable(); if (item.layer.getBounds) { map.fitBounds(item.layer.getBounds(), { maxZoom: 20 }); item.layer.openPopup(); highlightFeature(item.layer); } if (currentUserRole === 'admin' || canEditData) { openSidebar(item.feature, item.layer); } }; tbody.appendChild(tr); }); tableEl.appendChild(tbody); }
+        function toggleAttributeTable() { var modal = document.getElementById('attributeModal'); if (modal.classList.contains('active')) { modal.classList.remove('active'); } else { renderAttributeTable(); modal.classList.add('active'); } } document.getElementById('openTableBtn').addEventListener('click', toggleAttributeTable);
 
-        function openSidebar(feature, layer) {
-            var sidebar = document.getElementById('edit-sidebar'); var formDiv = document.getElementById('sidebar-form'); var footerDiv = document.getElementById('sidebar-footer');
-            formDiv.innerHTML = ''; footerDiv.innerHTML = ''; var props = feature.properties || {}; var inputElements = {};
-            for (var key in props) {
-                var label = document.createElement('label'); label.className = 'edit-label'; label.innerText = key + ':'; formDiv.appendChild(label);
-                var input = document.createElement('input'); input.type = 'text'; input.className = 'edit-input'; input.value = props[key] !== null && props[key] !== undefined ? props[key] : ''; formDiv.appendChild(input);
-                inputElements[key] = input;
-            }
-            isEditMode = true; currentEditing = { feature: feature, layer: layer, inputs: inputElements };
-            var saveBtn = document.createElement('button'); saveBtn.className = 'btn-custom btn-save'; saveBtn.innerText = 'Lưu Database';
-            saveBtn.onclick = function() { saveCurrentEdit(); closeSidebar(); }; footerDiv.appendChild(saveBtn);
-            var cancelBtn = document.createElement('button'); cancelBtn.className = 'btn-custom btn-cancel'; cancelBtn.innerText = 'Hủy';
-            cancelBtn.onclick = function() { closeSidebar(); }; footerDiv.appendChild(cancelBtn);
-            sidebar.classList.add('active');
-        }
+        function renderDataToMap(geojsondata, layerName) { if (currentGeoJsonLayer) { map.removeLayer(currentGeoJsonLayer); } currentGeoJsonLayer = L.geoJSON(geojsondata, { style: function (feature) { return defaultStyle; }, onEachFeature: function (feature, layer) { if (!feature.id) { feature.id = 'feat_' + Math.random().toString(36).substr(2, 9); } if (feature.properties) { layer.bindPopup(createPopupContent(feature, layer)); } layer.on('click', function(e) { if (isFlightMode) return; highlightFeature(layer); if ((currentUserRole === 'admin' || canEditData) && isEditMode) { if (currentEditing && currentEditing.layer === layer) return; saveCurrentEdit(); map.closePopup(); openSidebar(feature, layer); } }); } }); currentGeoJsonLayer.addTo(map); if (currentGeoJsonLayer.getBounds().isValid()) { map.fitBounds(currentGeoJsonLayer.getBounds()); } saveToLocalStorageCache(geojsondata); }
 
-        function createPopupContent(feature, layer) {
-            var container = document.createElement('div');
-            var propsDiv = document.createElement('div'); propsDiv.className = 'popup-content';
-            var html = "";
-            for (var key in feature.properties) html += "<b>" + escapeHtml(key) + ":</b> " + escapeHtml(feature.properties[key]) + "<br>";
-            propsDiv.innerHTML = html; container.appendChild(propsDiv);
-            
-            if (currentUserRole === 'admin' || canEditData) {
-                var btnContainer = document.createElement('div'); btnContainer.className = 'popup-btn-container';
-                var editBtn = document.createElement('button'); editBtn.className = 'btn-custom btn-edit'; editBtn.innerText = 'Chỉnh sửa';
-                editBtn.onclick = function() { openSidebar(feature, layer); map.closePopup(); };
-                btnContainer.appendChild(editBtn); container.appendChild(btnContainer);
-            }
-            return container;
-        }
-
-        function renderAttributeTable() {
-            var tableEl = document.getElementById('attrTableElement'); tableEl.innerHTML = '';
-            if (!currentGeoJsonLayer) return;
-            var features = []; currentGeoJsonLayer.eachLayer(function(layer) { if (layer.feature && layer.feature.properties) features.push({ feature: layer.feature, layer: layer }); });
-            if (features.length === 0) return;
-            var keys = Object.keys(features[0].feature.properties);
-            var thead = document.createElement('thead'); var headerTr = document.createElement('tr');
-            var thAction = document.createElement('th'); thAction.innerText = "Zoom"; headerTr.appendChild(thAction);
-            keys.forEach(key => { var th = document.createElement('th'); th.innerText = key; headerTr.appendChild(th); });
-            thead.appendChild(headerTr); tableEl.appendChild(thead);
-            var tbody = document.createElement('tbody');
-            features.forEach(item => {
-                var tr = document.createElement('tr');
-                var tdAction = document.createElement('td'); var zoomBtn = document.createElement('button'); zoomBtn.className = 'btn-custom btn-edit'; zoomBtn.innerText = '📍'; zoomBtn.style.padding = '3px 6px';
-                zoomBtn.onclick = function(e) { e.stopPropagation(); toggleAttributeTable(); if (item.layer.getBounds) { map.fitBounds(item.layer.getBounds(), { maxZoom: 20 }); item.layer.openPopup(); highlightFeature(item.layer); } };
-                tdAction.appendChild(zoomBtn); tr.appendChild(tdAction);
-                keys.forEach(key => { var td = document.createElement('td'); var val = item.feature.properties[key]; td.innerText = val !== null && val !== undefined ? val : ''; tr.appendChild(td); });
-                
-                tr.onclick = function() { 
-                    toggleAttributeTable(); 
-                    if (item.layer.getBounds) { map.fitBounds(item.layer.getBounds(), { maxZoom: 20 }); item.layer.openPopup(); highlightFeature(item.layer); } 
-                    if (currentUserRole === 'admin' || canEditData) { openSidebar(item.feature, item.layer); } 
-                };
-                tbody.appendChild(tr);
-            });
-            tableEl.appendChild(tbody);
-        }
-
-        function toggleAttributeTable() { var modal = document.getElementById('attributeModal'); if (modal.classList.contains('active')) { modal.classList.remove('active'); } else { renderAttributeTable(); modal.classList.add('active'); } }
-        document.getElementById('openTableBtn').addEventListener('click', toggleAttributeTable);
-
-        function renderDataToMap(geojsondata, layerName) {
-            if (currentGeoJsonLayer) { map.removeLayer(currentGeoJsonLayer); }
-            currentGeoJsonLayer = L.geoJSON(geojsondata, {
-                style: function (feature) { return defaultStyle; },
-                onEachFeature: function (feature, layer) {
-                    if (!feature.id) { feature.id = 'feat_' + Math.random().toString(36).substr(2, 9); }
-                    if (feature.properties) { layer.bindPopup(createPopupContent(feature, layer)); }
-                    
-                    // Bắt sự kiện Click lên thửa đất (layer)
-                    layer.on('click', function(e) {
-                        if (isFlightMode) {
-                            L.DomEvent.stopPropagation(e); // Ngăn click xuyên xuống bản đồ nền
-                            let mode = document.querySelector('input[name="flightGenMode"]:checked').value;
-                            if (mode === 'auto') {
-                                generateAutoFlightPath(layer);
-                            }
-                            return; 
-                        }
-                        
-                        highlightFeature(layer);
-                        if ((currentUserRole === 'admin' || canEditData) && isEditMode) { 
-                            if (currentEditing && currentEditing.layer === layer) return; 
-                            saveCurrentEdit(); map.closePopup(); openSidebar(feature, layer); 
-                        }
-                    });
-                }
-            });
-            currentGeoJsonLayer.addTo(map);
-            if (currentGeoJsonLayer.getBounds().isValid()) { map.fitBounds(currentGeoJsonLayer.getBounds()); }
-            saveToLocalStorageCache(geojsondata);
-        }
-
-        document.getElementById('geojsonFile').addEventListener('change', function(e) {
-            var file = e.target.files[0]; if (!file) return;
-            var pName = file.name.replace(/\.[^/.]+$/, "");
-            closeSidebar(); var reader = new FileReader(); showLoading("Đang upload file lên Database...");
-
-            reader.onload = function(event) {
-                try {
-                    var geojson = JSON.parse(event.target.result);
-                    geojson.features.forEach(f => { if(!f.id) f.id = 'feat_' + Math.random().toString(36).substr(2, 9); });
-
-                    fetch(API_URL + '/api/upload-features', {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ features: geojson.features, projectName: pName })
-                    }).then(res => res.json()).then(data => {
-                        hideLoading();
-                        if(data.success) {
-                            alert(data.message); loadProjectList(); 
-                            setTimeout(() => { document.getElementById('projectSelect').value = pName; document.getElementById('loadDbBtn').click(); }, 500);
-                        } else alert("Lỗi lưu DB: " + data.error);
-                    });
-                } catch (err) { hideLoading(); alert("Lỗi đọc file GeoJSON!"); }
-            };
-            reader.readAsText(file);
-        });
-
-        document.getElementById('loadDbBtn').addEventListener('click', function() {
-            closeSidebar(); let pName = document.getElementById('projectSelect').value;
-            if(!pName) {
-                if (currentGeoJsonLayer) { map.removeLayer(currentGeoJsonLayer); currentGeoJsonLayer = null; }
-                localStorage.removeItem('webgis_cache_data'); return alert("Vui lòng chọn 1 Dự án từ danh sách!");
-            }
-            showLoading("Đang tải dữ liệu dự án [" + pName + "]...");
-            currentActiveProject = pName;
-            
-            fetch(API_URL + '/api/get-features?project=' + encodeURIComponent(pName))
-                .then(res => res.json()).then(data => {
-                    hideLoading();
-                    if(data.features && data.features.length > 0) {
-                        renderDataToMap(data, pName); showSaveStatus("✓ Đã cập nhật dự án mới nhất");
-                    } else alert("Dự án này chưa có dữ liệu hoặc đã bị lỗi!");
-                }).catch(err => { hideLoading(); console.error(err); });
-        });
-
-        document.getElementById('exportBtn').addEventListener('click', function() {
-            if (currentUserRole !== 'admin' && !currentUserPermissions.can_export) {
-                return alert("Tài khoản của bạn không được cấp quyền Xuất file!");
-            }
-            if (!currentGeoJsonLayer) return alert("Chưa có dữ liệu để xuất!");
-            if (isEditMode) { saveCurrentEdit(); closeSidebar(); }
-            var blob = new Blob([JSON.stringify(currentGeoJsonLayer.toGeoJSON(), null, 2)], { type: "application/geo+json" });
-            var url = URL.createObjectURL(blob);
-            var a = document.createElement('a'); a.href = url; a.download = (currentActiveProject || "dulieu") + "_export.geojson";
-            document.body.appendChild(a); a.click(); document.body.removeChild(a); window.URL.revokeObjectURL(url);
-        });
-
+        document.getElementById('geojsonFile').addEventListener('change', function(e) { var file = e.target.files[0]; if (!file) return; var pName = file.name.replace(/\.[^/.]+$/, ""); closeSidebar(); var reader = new FileReader(); showLoading("Đang upload file..."); reader.onload = function(event) { try { var geojson = JSON.parse(event.target.result); geojson.features.forEach(f => { if(!f.id) f.id = 'feat_' + Math.random().toString(36).substr(2, 9); }); fetch(API_URL + '/api/upload-features', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ features: geojson.features, projectName: pName }) }).then(res => res.json()).then(data => { hideLoading(); if(data.success) { alert(data.message); loadProjectList(); setTimeout(() => { document.getElementById('projectSelect').value = pName; document.getElementById('loadDbBtn').click(); }, 500); } else alert("Lỗi lưu DB: " + data.error); }); } catch (err) { hideLoading(); alert("Lỗi đọc file GeoJSON!"); } }; reader.readAsText(file); });
+        document.getElementById('loadDbBtn').addEventListener('click', function() { closeSidebar(); let pName = document.getElementById('projectSelect').value; if(!pName) { if (currentGeoJsonLayer) { map.removeLayer(currentGeoJsonLayer); currentGeoJsonLayer = null; } localStorage.removeItem('webgis_cache_data'); return alert("Chọn 1 Dự án!"); } showLoading("Đang tải dữ liệu..."); currentActiveProject = pName; fetch(API_URL + '/api/get-features?project=' + encodeURIComponent(pName)).then(res => res.json()).then(data => { hideLoading(); if(data.features && data.features.length > 0) { renderDataToMap(data, pName); showSaveStatus("✓ Đã cập nhật"); } else alert("Dự án trống!"); }).catch(err => { hideLoading(); console.error(err); }); });
+        document.getElementById('exportBtn').addEventListener('click', function() { if (currentUserRole !== 'admin' && !currentUserPermissions.can_export) { return alert("Không có quyền Xuất file!"); } if (!currentGeoJsonLayer) return alert("Chưa có dữ liệu!"); if (isEditMode) { saveCurrentEdit(); closeSidebar(); } var blob = new Blob([JSON.stringify(currentGeoJsonLayer.toGeoJSON(), null, 2)], { type: "application/geo+json" }); var url = URL.createObjectURL(blob); var a = document.createElement('a'); a.href = url; a.download = (currentActiveProject || "dulieu") + "_export.geojson"; document.body.appendChild(a); a.click(); document.body.removeChild(a); window.URL.revokeObjectURL(url); });
+        
         L.control.scale({imperial: false, position: 'bottomleft'}).addTo(map);
     </script>
 </body>
