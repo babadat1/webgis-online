@@ -684,10 +684,38 @@
             
             photoCoords.forEach((latlng, index) => {
                 let wpNum = index + 1; let isStart = (index === 0);
-                let marker = L.circleMarker(latlng, { radius: isStart ? 5 : 4, color: '#e67e22', weight: 2, fillColor: '#f1c40f', fillOpacity: 1 });
+                let marker = L.circleMarker(latlng, { 
+                    radius: isStart ? 6 : 5, 
+                    color: '#e67e22', 
+                    weight: 2, 
+                    fillColor: '#f1c40f', 
+                    fillOpacity: 1,
+                    draggable: true 
+                });
+                
                 let tooltipClass = isStart ? 'wp-start' : 'wp-tooltip';
-                let tooltipText = isStart ? `Bắt đầu (1)` : `${wpNum}`;
+                let tooltipText = isStart ? `Bắt đầu (1) [Kéo/Xóa]` : `${wpNum} [Kéo/Xóa]`;
                 marker.bindTooltip(tooltipText, {permanent: true, direction: 'right', className: tooltipClass});
+                
+                // Cho phép kéo thả điểm ảnh để di chuyển
+                marker.on('dragend', function(e) {
+                    let newLatLng = e.target.getLatLng();
+                    rawPhotoWaypoints[index] = [newLatLng.lng, newLatLng.lat];
+                    rawWaypoints[index] = [newLatLng.lng, newLatLng.lat];
+                    renderFlightPath();
+                });
+
+                // Click đúp hoặc click chuột phải vào điểm ảnh để xóa điểm đó
+                marker.on('contextmenu', function(e) {
+                    L.DomEvent.stopPropagation(e);
+                    if (confirm("Bạn có muốn xóa điểm chụp ảnh số " + wpNum + " này không?")) {
+                        rawPhotoWaypoints.splice(index, 1);
+                        rawWaypoints.splice(index, 1);
+                        renderFlightPath();
+                        alert("Đã xóa điểm chụp ảnh số " + wpNum);
+                    }
+                });
+
                 flightMarkers.addLayer(marker);
             });
         }
