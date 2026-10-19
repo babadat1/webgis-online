@@ -154,8 +154,10 @@
         </div>
 
         <!-- Các Nút Hành Động Vẽ -->
+        <button class="btn-custom btn-save" style="width: 100%; font-weight: bold; padding: 10px; margin-bottom: 8px; font-size: 14px; background-color: #27ae60;" onclick="processLoadedBoundary()">⚡ Xử lý Đường Bay từ File / Dự án</button>
+
         <div style="display: flex; gap: 5px; margin-bottom: 5px;" id="drawActionContainer">
-            <button class="btn-custom" style="background: #27ae60; flex: 1; font-weight: bold; padding: 8px;" id="drawBtn" onclick="startDrawing()">📝 Bắt Đầu Vẽ</button>
+            <button class="btn-custom" style="background: #e67e22; flex: 1; font-weight: bold; padding: 8px;" id="drawBtn" onclick="startDrawing()">📝 Vẽ Mới</button>
             <label class="btn-custom" style="background: #8e44ad; flex: 1; font-weight: bold; padding: 8px; text-align: center; cursor: pointer; display: block; margin: 0;" id="uploadFlightLabel">
                 📂 Tải file mới
                 <input type="file" id="flightGeojsonFile" accept=".geojson, .json" style="display: none;" />
@@ -370,7 +372,9 @@
                         if(layers.length > 0) {
                             let feature = layers[0].feature;
                             setBoundaryFromFeature(feature);
-                            alert("Đã tải lên và tự động thiết lập đường bay từ file!");
+                            // Tự động sinh đường bay luôn
+                            generateGridPath();
+                            alert("Đã tự động xử lý và tạo xong đường bay từ file! Bạn có thể xuất KML ngay.");
                         }
                     }
                 } catch (err) { 
@@ -421,6 +425,7 @@
                 let layers = currentGeoJsonLayer.getLayers();
                 if(layers.length > 0) {
                     setBoundaryFromFeature(layers[0].feature);
+                    generateGridPath();
                 }
             }
         }
@@ -793,6 +798,21 @@
             }); 
             currentGeoJsonLayer.addTo(map); 
             if (currentGeoJsonLayer.getBounds().isValid()) map.fitBounds(currentGeoJsonLayer.getBounds()); 
+        }
+
+        
+        function processLoadedBoundary() {
+            if (currentGeoJsonLayer) {
+                let layers = currentGeoJsonLayer.getLayers();
+                if(layers.length > 0) {
+                    let feature = layers[0].feature;
+                    setBoundaryFromFeature(feature);
+                    generateGridPath();
+                    alert("Đã xử lý xong đường bay từ dữ liệu file/dự án! Sẵn sàng xuất KML.");
+                    return;
+                }
+            }
+            alert("Chưa có file hoặc dự án nào được tải lên/chọn!");
         }
 
         L.control.scale({imperial: false, position: 'bottomleft'}).addTo(map);
